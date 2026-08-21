@@ -1,0 +1,2312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AETHER // AI Market Intelligence & Quant Terminal</title>
+    <!-- Modern Typography: Plus Jakarta Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        :root {
+            /* Energent.ai Crisp White & Modern Fintech Light Theme */
+            --bg-void: #f8fafc;
+            --bg-canvas: #ffffff;
+            --bg-card: rgba(255, 255, 255, 0.88);
+            --bg-card-elevated: #ffffff;
+            --bg-card-hover: #f1f5f9;
+            --bg-overlay: rgba(255, 255, 255, 0.85);
+            
+            --border-subtle: #e2e8f0;
+            --border-highlight: rgba(2, 132, 199, 0.35);
+            --border-purple: rgba(147, 51, 234, 0.3);
+            --border-strong: #cbd5e1;
+            
+            --text-title: #0f172a;
+            --text-body: #334155;
+            --text-dim: #64748b;
+            --text-subtle: #94a3b8;
+            
+            --primary: #0284c7;
+            --primary-glow: rgba(2, 132, 199, 0.12);
+            --secondary: #7c3aed;
+            --secondary-glow: rgba(124, 58, 237, 0.12);
+            
+            --signal-buy: #059669;
+            --signal-buy-bg: #ecfdf5;
+            --signal-buy-glow: rgba(16, 185, 129, 0.15);
+            
+            --signal-sell: #e11d48;
+            --signal-sell-bg: #fff1f2;
+            --signal-sell-glow: rgba(244, 63, 94, 0.15);
+            
+            --signal-amber: #d97706;
+            --signal-amber-bg: #fffbeb;
+            --signal-amber-glow: rgba(245, 158, 11, 0.15);
+
+            --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-sans);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-void);
+            color: var(--text-body);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(ellipse 90% 50% at 50% -10%, rgba(56, 189, 248, 0.15), transparent 70%),
+                radial-gradient(circle at 90% 25%, rgba(168, 85, 247, 0.10), transparent 45%),
+                radial-gradient(circle at 10% 80%, rgba(16, 185, 129, 0.08), transparent 40%);
+            background-attachment: fixed;
+        }
+
+        .mono {
+            font-family: var(--font-mono);
+            font-feature-settings: 'tnum' on, 'zero' on;
+        }
+
+        /* Modern Gradient Text (Fintech Style) */
+        .gradient-text {
+            background: linear-gradient(135deg, #0f172a 20%, #0284c7 65%, #7c3aed 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .gradient-text-emerald {
+            background: linear-gradient(135deg, #0f172a 20%, #059669 70%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Glassmorphism Crisp Card */
+        .premium-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 18px;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+            transition: all 0.25s var(--ease-smooth);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .premium-card:hover {
+            border-color: var(--border-strong);
+            box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.08), 0 0 20px rgba(2, 132, 199, 0.06);
+        }
+
+        .premium-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(2, 132, 199, 0.2), transparent);
+        }
+
+        /* Header Navigation */
+        header {
+            height: 70px;
+            background: var(--bg-overlay);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 38px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .brand-logo-glow {
+            width: 36px;
+            height: 36px;
+            border-radius: 11px;
+            background: linear-gradient(135deg, #0284c7, #7c3aed);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 16px rgba(2, 132, 199, 0.35);
+            color: #fff;
+            font-size: 17px;
+            font-weight: 800;
+        }
+
+        .brand-text {
+            font-size: 17px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: var(--text-title);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand-badge {
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: #e0f2fe;
+            color: #0369a1;
+            border: 1px solid #bae6fd;
+            text-transform: uppercase;
+        }
+
+        .header-nav-items {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-pill {
+            background: #f1f5f9;
+            border: 1px solid transparent;
+            color: var(--text-body);
+            font-size: 13px;
+            font-weight: 600;
+            padding: 7px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s var(--ease-smooth);
+        }
+
+        .nav-pill:hover {
+            color: var(--text-title);
+            background: #e2e8f0;
+        }
+
+        .nav-pill.active {
+            background: #ffffff;
+            border-color: var(--border-subtle);
+            color: var(--primary);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-neon-primary {
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 9px 18px;
+            border-radius: 9px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.28);
+            transition: all 0.2s ease;
+        }
+
+        .btn-neon-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(2, 132, 199, 0.38);
+        }
+
+        /* Main Container */
+        main {
+            flex: 1;
+            padding: 36px 40px;
+            max-width: 1720px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        /* ── Hero NLP AI Search Section (Energent Centerpiece - Light) ── */
+        .hero-prompt-section {
+            text-align: center;
+            max-width: 1000px;
+            margin: 10px auto 0 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .hero-title {
+            font-size: 40px;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.03em;
+            color: #0f172a;
+        }
+
+        .hero-subtitle {
+            font-size: 15.5px;
+            color: var(--text-body);
+            max-width: 720px;
+            line-height: 1.6;
+        }
+
+        .prompt-glass-box {
+            width: 100%;
+            background: #ffffff;
+            border: 1px solid rgba(2, 132, 199, 0.3);
+            border-radius: 20px;
+            padding: 18px 22px;
+            box-shadow: 0 16px 40px -10px rgba(2, 132, 199, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            position: relative;
+        }
+
+        .prompt-textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-title);
+            font-size: 15px;
+            font-weight: 500;
+            resize: none;
+            outline: none;
+            min-height: 54px;
+            line-height: 1.55;
+        }
+
+        .prompt-textarea::placeholder {
+            color: var(--text-subtle);
+        }
+
+        .prompt-action-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border-subtle);
+            padding-top: 14px;
+        }
+
+        .quick-chips-wrap {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .quick-chip {
+            background: #f1f5f9;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-body);
+            font-size: 12.5px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .quick-chip:hover {
+            background: #e0f2fe;
+            border-color: #7dd3fc;
+            color: var(--primary);
+        }
+
+        /* Stat Counters Grid (Energent Style - Light) */
+        .stats-banner {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top: 4px;
+        }
+
+        .stat-item {
+            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 18px 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            text-align: left;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+        }
+
+        .stat-val {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-title);
+            letter-spacing: -0.02em;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+
+        /* Observable Agent Workflow Tracker */
+        .workflow-tracker {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 14px 18px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.02);
+        }
+
+        .workflow-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12.5px;
+            color: var(--text-dim);
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .workflow-step.active {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .workflow-step.completed {
+            color: var(--signal-buy);
+            font-weight: 600;
+        }
+
+        .step-icon-circle {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .workflow-step.active .step-icon-circle {
+            background: #e0f2fe;
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: 0 0 10px rgba(2, 132, 199, 0.2);
+        }
+
+        .workflow-step.completed .step-icon-circle {
+            background: #d1fae5;
+            border-color: var(--signal-buy);
+            color: var(--signal-buy);
+        }
+
+        /* ── Top Decision Hero Banner ── */
+        .decision-matrix-card {
+            padding: 28px 34px;
+            display: grid;
+            grid-template-columns: 300px 1fr 340px;
+            gap: 32px;
+            align-items: center;
+            background: #ffffff;
+        }
+
+        .decision-left {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .section-tag {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+        }
+
+        .action-hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            width: fit-content;
+        }
+
+        .action-hero-badge.buy {
+            background: var(--signal-buy-bg);
+            color: var(--signal-buy);
+            border: 1px solid #a7f3d0;
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.12);
+        }
+
+        .action-hero-badge.sell {
+            background: var(--signal-sell-bg);
+            color: var(--signal-sell);
+            border: 1px solid #fecdd3;
+            box-shadow: 0 4px 14px rgba(225, 29, 72, 0.12);
+        }
+
+        .action-hero-badge.hold {
+            background: var(--signal-amber-bg);
+            color: var(--signal-amber);
+            border: 1px solid #fde68a;
+            box-shadow: 0 4px 14px rgba(217, 119, 6, 0.12);
+        }
+
+        .decision-mid {
+            border-left: 1px solid var(--border-subtle);
+            border-right: 1px solid var(--border-subtle);
+            padding: 0 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .decision-rationale {
+            font-size: 14.5px;
+            line-height: 1.65;
+            color: var(--text-title);
+            font-weight: 500;
+        }
+
+        .divergence-alert-box {
+            font-size: 12.5px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            background: #f8fafc;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-body);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+        }
+
+        .decision-right {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .dial-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .dial-score-number {
+            font-size: 30px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .gauge-track {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .gauge-fill {
+            height: 100%;
+            width: 50%;
+            background: var(--primary);
+            transition: all 0.6s var(--ease-smooth);
+            border-radius: 999px;
+        }
+
+        /* ── 2-Column Main Workspace ── */
+        .workspace-split {
+            display: grid;
+            grid-template-columns: 1fr 500px;
+            gap: 26px;
+        }
+
+        .card-header-bar {
+            padding: 20px 26px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title-text {
+            font-size: 14.5px;
+            font-weight: 700;
+            color: var(--text-title);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-body-content {
+            padding: 24px 26px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #chart-canvas {
+            width: 100%;
+            height: 380px;
+            border-radius: 12px;
+        }
+
+        /* Indicator Tiles */
+        .indicator-tiles-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .indicator-tile {
+            background: #f8fafc;
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            transition: border-color 0.2s ease;
+        }
+
+        .indicator-tile:hover {
+            border-color: var(--border-highlight);
+            background: #f1f5f9;
+        }
+
+        .tile-name {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--text-dim);
+        }
+
+        .tile-data {
+            font-size: 15.5px;
+            font-weight: 800;
+            color: var(--text-title);
+        }
+
+        /* AI Intelligence Hub (Right Column - Light) */
+        .ai-module-card {
+            background: #f8fafc;
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 16px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .module-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sentiment-chip {
+            font-size: 11px;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+
+        .sentiment-chip.bullish {
+            background: #d1fae5;
+            color: #047857;
+            border: 1px solid #6ee7b7;
+        }
+
+        .sentiment-chip.bearish {
+            background: #ffe4e6;
+            color: #be123c;
+            border: 1px solid #fda4af;
+        }
+
+        .sentiment-chip.neutral {
+            background: #fef3c7;
+            color: #b45309;
+            border: 1px solid #fcd34d;
+        }
+
+        .module-desc-text {
+            font-size: 13.5px;
+            line-height: 1.6;
+            color: var(--text-body);
+        }
+
+        .news-headline-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 170px;
+            overflow-y: auto;
+        }
+
+        .news-headline-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .news-headline-list::-webkit-scrollbar-thumb {
+            background: var(--border-subtle);
+            border-radius: 4px;
+        }
+
+        .headline-bubble {
+            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 12.5px;
+            line-height: 1.5;
+            color: var(--text-body);
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+
+        .headline-bubble:hover {
+            background: #f8fafc;
+            border-color: var(--primary);
+            color: var(--text-title);
+        }
+
+        /* ── Backtesting Simulation & Lego Block Builder (Light) ── */
+        .backtest-stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .bt-stat-box {
+            background: #f8fafc;
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 16px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .bt-val {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .log-table-container {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            background: #ffffff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+
+        th {
+            background: #f1f5f9;
+            padding: 11px 16px;
+            text-align: left;
+            font-size: 11.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            border-bottom: 1px solid var(--border-subtle);
+            position: sticky;
+            top: 0;
+        }
+
+        td {
+            padding: 11px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-body);
+        }
+
+        tr:hover td {
+            background: #f8fafc;
+            color: var(--text-title);
+        }
+
+        /* Modal Overlay (Light Friendly) */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-card {
+            background: #ffffff;
+            border: 1px solid var(--border-strong);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.25), 0 0 35px rgba(2, 132, 199, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            position: relative;
+        }
+
+        @media (max-width: 1280px) {
+            .decision-matrix-card {
+                grid-template-columns: 1fr;
+            }
+            .decision-mid {
+                border: none;
+                padding: 0;
+            }
+            .workspace-split {
+                grid-template-columns: 1fr;
+            }
+            .stats-banner, .workflow-tracker, .indicator-tiles-grid, .backtest-stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Ambient Header (Clean White / Light Theme) -->
+    <header>
+        <div class="header-brand" onclick="refreshTerminal()">
+            <div class="brand-logo-glow">⚡</div>
+            <div class="brand-text">
+                AETHER <span class="gradient-text">QUANTUM-AI</span>
+                <span class="brand-badge mono">v3.3 Light</span>
+            </div>
+        </div>
+
+        <div class="header-nav-items">
+            <div class="quick-chips-wrap mono" style="margin-right: 8px;">
+                <button class="nav-pill active mono" data-symbol="BTCUSDT" onclick="switchSymbol('BTCUSDT', this)">BTC/USDT</button>
+                <button class="nav-pill mono" data-symbol="ETHUSDT" onclick="switchSymbol('ETHUSDT', this)">ETH/USDT</button>
+                <button class="nav-pill mono" data-symbol="NVDA" onclick="switchSymbol('NVDA', this)">NVDA</button>
+                <button class="nav-pill mono" data-symbol="AAPL" onclick="switchSymbol('AAPL', this)">AAPL</button>
+                <button class="nav-pill mono" data-symbol="005930.KS" onclick="switchSymbol('005930.KS', this)">005930</button>
+            </div>
+
+            <div class="quick-chips-wrap mono" style="margin-right: 12px;">
+                <button class="nav-pill active mono" data-tf="D1" onclick="switchTimeFrame('D1', this)">1D</button>
+                <button class="nav-pill mono" data-tf="H4" onclick="switchTimeFrame('H4', this)">4H</button>
+                <button class="nav-pill mono" data-tf="H1" onclick="switchTimeFrame('H1', this)">1H</button>
+            </div>
+
+            <button class="nav-pill mono" onclick="openWalletModal()" style="border-color: rgba(124,58,237,0.25); color: #7c3aed; font-weight: 700;">
+                <span>💳 Wallet</span>
+            </button>
+
+            <button class="nav-pill mono" onclick="openArenaModal()" style="border-color: rgba(217,119,6,0.25); color: #d97706; font-weight: 700;">
+                <span>🏆 Arena</span>
+            </button>
+
+            <button class="nav-pill mono" onclick="openFeedModal()" style="border-color: rgba(5,150,105,0.25); color: #059669;">
+                <span>📢 Feed</span>
+            </button>
+
+            <button class="nav-pill mono" onclick="openExpertsModal()">
+                <span>🌐 Experts</span>
+            </button>
+
+            <button class="nav-pill mono" id="auth-btn" onclick="openAuthModal()" style="border-color: rgba(2,132,199,0.25); color: var(--primary);">
+                <span id="user-badge-text">👤 Login / Join</span>
+            </button>
+
+            <button class="btn-neon-primary mono" onclick="refreshTerminal()">
+                <span>⚡</span> Run Pipeline
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main>
+        <!-- ── Hero NLP AI Search Section (Clean Crisp Light) ── -->
+        <section class="hero-prompt-section">
+            <h1 class="hero-title">
+                AI 기반 <span class="gradient-text">하이브리드 금융 인텔리전스</span>
+            </h1>
+            <p class="hero-subtitle">
+                ta4j 정량 기술 지표와 4대 ChromaDB AI 엔진(뉴스 RAG, 차트 프랙탈, 장기 기억, 페르소나 자문)을 융합하여 실시간 최적 매매 전략을 도출합니다.
+            </p>
+
+            <div class="prompt-glass-box">
+                <textarea id="nlp-prompt-input" class="prompt-textarea" rows="2" 
+                    placeholder="질문하거나 분석할 종목(예: BTCUSDT, NVDA, AAPL, 삼성전자) 또는 원하는 퀀트 전략을 입력하세요..."
+                    onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); handleNlpPrompt(); }"></textarea>
+                
+                <div class="prompt-action-row">
+                    <div class="quick-chips-wrap">
+                        <span class="quick-chip" onclick="applyQuickPrompt('BTCUSDT', '비트코인 4대 AI 엔진 융합 분석 실행')">⚡ BTC AI 융합 분석</span>
+                        <span class="quick-chip" onclick="applyQuickPrompt('NVDA', '엔비디아 차트 프랙탈 및 감성 분석')">📈 NVDA 프랙탈 진단</span>
+                        <span class="quick-chip" onclick="openArenaModal()">🔮 24H 가격 예측 리그</span>
+                        <span class="quick-chip" onclick="toggleLegoPanel()">🧱 레고 퀀트 빌더</span>
+                    </div>
+                    <button class="btn-neon-primary" onclick="handleNlpPrompt()" style="padding: 7px 18px; font-size: 13px;">
+                        <span>Ask AI</span> ➔
+                    </button>
+                </div>
+            </div>
+
+            <!-- Observable Agent Workflow Tracker -->
+            <div class="workflow-tracker mono" style="width: 100%;">
+                <div id="step-1" class="workflow-step completed">
+                    <div class="step-icon-circle">✓</div>
+                    <span>1. OpenBB 수집</span>
+                </div>
+                <div id="step-2" class="workflow-step completed">
+                    <div class="step-icon-circle">✓</div>
+                    <span>2. ta4j 지표 계산</span>
+                </div>
+                <div id="step-3" class="workflow-step completed">
+                    <div class="step-icon-circle">✓</div>
+                    <span>3. ChromaDB 4대 벡터 RAG</span>
+                </div>
+                <div id="step-4" class="workflow-step completed">
+                    <div class="step-icon-circle">✓</div>
+                    <span>4. Ollama 신호 융합</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats Counter Row -->
+        <div class="stats-banner mono">
+            <div class="stat-item">
+                <span class="stat-val gradient-text-emerald">ta4j 60% + AI 40%</span>
+                <span class="stat-label">하이브리드 융합 가중치</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-val gradient-text">4-Engine AI</span>
+                <span class="stat-label">ChromaDB 벡터 아키텍처</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-val" style="color: var(--primary);">1.2s Latency</span>
+                <span class="stat-label">엔진 병렬 비동기 추론</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-val" style="color: var(--secondary);">Pessimistic Lock</span>
+                <span class="stat-label">동시성 보호 & 영수증 증명</span>
+            </div>
+        </div>
+
+        <!-- ── Top Decision Hero Banner ── -->
+        <section class="premium-card decision-matrix-card">
+            <div class="decision-left">
+                <span class="section-tag mono">Integrated Decision (4-Engine Fusion)</span>
+                <div id="hero-chip" class="action-hero-badge mono buy">
+                    STRONG BUY
+                </div>
+                <div class="mono" style="font-size: 12.5px; color: var(--text-dim);">
+                    Target: <strong id="active-symbol-label" style="color: var(--text-title); font-size: 14.5px;">BTCUSDT</strong>
+                </div>
+            </div>
+
+            <div class="decision-mid">
+                <span class="section-tag mono">AI Synthesis & Strategic Rationale</span>
+                <p id="hero-rationale" class="decision-rationale">
+                    데이터 수집 및 정량/정성 신호 융합 분석을 실행 중입니다...
+                </p>
+                <div id="hero-divergence" class="divergence-alert-box mono">
+                    <span>⚡</span> <span>Divergence Monitor: Evaluating market signals...</span>
+                </div>
+            </div>
+
+            <div class="decision-right">
+                <div class="dial-header">
+                    <span class="section-tag mono">Fusion Score</span>
+                    <span id="hero-score-num" class="dial-score-number mono" style="color: var(--signal-buy);">+0.68</span>
+                </div>
+                <div class="gauge-track">
+                    <div id="hero-score-fill" class="gauge-fill" style="width: 84%;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-subtle);" class="mono">
+                    <span>-1.0 (Bearish)</span>
+                    <span>0.0 Neutral</span>
+                    <span>+1.0 (Bullish)</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── 2-Column Main Workspace ── -->
+        <div class="workspace-split">
+            <!-- Left: Price Chart & Quant Metrics -->
+            <div class="premium-card">
+                <div class="card-header-bar">
+                    <div class="card-title-text">
+                        <span>📈 Real-Time Price Action (OpenBB Ingestion)</span>
+                    </div>
+                    <span id="price-ticker" class="mono" style="font-size: 18px; font-weight: 800; color: var(--text-title);">$0.00</span>
+                </div>
+                <div class="card-body-content">
+                    <div id="chart-canvas"></div>
+                    <div class="indicator-tiles-grid mono">
+                        <div class="indicator-tile">
+                            <span class="tile-name">RSI (14)</span>
+                            <span id="metric-rsi" class="tile-data">-</span>
+                        </div>
+                        <div class="indicator-tile">
+                            <span class="tile-name">SMA (20 / 50)</span>
+                            <span id="metric-sma" class="tile-data">-</span>
+                        </div>
+                        <div class="indicator-tile">
+                            <span class="tile-name">Bollinger Upper</span>
+                            <span id="metric-bb-u" class="tile-data">-</span>
+                        </div>
+                        <div class="indicator-tile">
+                            <span class="tile-name">Bollinger Lower</span>
+                            <span id="metric-bb-l" class="tile-data">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Spring AI & Vector Memory Hub -->
+            <div class="premium-card">
+                <div class="card-header-bar">
+                    <div class="card-title-text">
+                        <span>🤖 Market Intelligence (Spring AI + 4 RAG)</span>
+                    </div>
+                    <span id="sentiment-pill" class="sentiment-chip bullish mono">BULLISH</span>
+                </div>
+                <div class="card-body-content" style="gap: 14px;">
+                    <!-- Module 1: Sentiment & Macro -->
+                    <div class="ai-module-card">
+                        <div class="module-header">
+                            <span class="section-tag mono">Macro & News Sentiment</span>
+                            <span id="sentiment-score-num" class="mono" style="font-size: 14.5px; font-weight: 800; color: var(--text-title);">+0.45</span>
+                        </div>
+                        <p id="macro-summary-text" class="module-desc-text">
+                            로컬 LLM을 통해 거시경제 지표 및 시장 분위기를 분석 중입니다...
+                        </p>
+                        <div style="font-size: 12px; color: var(--text-dim);">
+                            ⚠️ <strong>Key Risk:</strong> <span id="risk-factor-text">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Module 2: Chart Pattern Fractal Vector -->
+                    <div class="ai-module-card" style="border-left: 4px solid var(--primary);">
+                        <div class="module-header">
+                            <span class="section-tag mono" style="color: var(--primary);">ChromaDB Chart Fractal Vector</span>
+                            <span id="pattern-winrate" class="mono" style="font-size: 13px; font-weight: 700; color: var(--primary);">WinRate: 80%</span>
+                        </div>
+                        <p id="pattern-desc" class="module-desc-text" style="font-size: 12.5px;">
+                            과거 차트 패턴 벡터 유사도 분석 대기 중...
+                        </p>
+                    </div>
+
+                    <!-- Module 3: Agent Long-Term Reflection -->
+                    <div class="ai-module-card" style="border-left: 4px solid var(--signal-amber);">
+                        <div class="module-header">
+                            <span class="section-tag mono" style="color: var(--signal-amber);">Agent Long-Term Memory (Self-Reflection)</span>
+                        </div>
+                        <p id="agent-reflection-text" class="module-desc-text" style="font-size: 12.5px; color: #92400e;">
+                            과거 매매 복기 및 의사결정 메모리 검색 중...
+                        </p>
+                    </div>
+
+                    <!-- Module 4: Investor Persona Advisory -->
+                    <div class="ai-module-card" style="border-left: 4px solid var(--secondary);">
+                        <div class="module-header">
+                            <span class="section-tag mono" style="color: var(--secondary);">Investor Persona Advisory Base</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px;">
+                            <div><strong style="color: #7c3aed;">💎 Buffett (Value):</strong> <span id="persona-buffett" style="color: var(--text-body);">-</span></div>
+                            <div><strong style="color: #0284c7;">📐 Simons (Quant):</strong> <span id="persona-simons" style="color: var(--text-body);">-</span></div>
+                            <div><strong style="color: #059669;">🌐 Dalio (Macro):</strong> <span id="persona-dalio" style="color: var(--text-body);">-</span></div>
+                        </div>
+                    </div>
+
+                    <span class="section-tag mono" style="margin-top: 4px;">ChromaDB Retrieved News Context</span>
+                    <div id="news-feed" class="news-headline-list">
+                        <!-- Dynamic headlines -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Bottom: Backtesting Simulation & Lego Builder ── -->
+        <section class="premium-card">
+            <div class="card-header-bar">
+                <div class="card-title-text">
+                    <span>🧱 Strategy Simulation Sandbox (ta4j Lego Block Builder)</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="nav-pill mono" onclick="toggleLegoPanel()">🧱 Configure Lego Blocks</button>
+                    <button class="btn-neon-primary mono" onclick="executeBacktest()" style="padding: 7px 16px; font-size: 12.5px;">▶ Run Simulation</button>
+                </div>
+            </div>
+            <div class="card-body-content">
+                <!-- Lego Blocks Configuration Panel -->
+                <div id="lego-config-panel" style="background: #f8fafc; border: 1px solid var(--border-highlight); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+                    <div style="font-size: 14px; font-weight: 700; color: var(--text-title); display: flex; justify-content: space-between;">
+                        <span>🧱 Custom Strategy Lego Blocks (레고 블록 전략 조합)</span>
+                        <span class="mono" style="font-size: 12px; color: var(--primary);">Select Entry & Exit Rules</span>
+                    </div>
+
+                    <!-- Entry Blocks -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px;">
+                        <label style="background: #ffffff; padding: 12px; border-radius: 10px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid var(--border-subtle); box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <input type="checkbox" id="lego-entry-rsi" checked>
+                            <span>[진입] RSI &lt; 30 (과매도 반등)</span>
+                        </label>
+                        <label style="background: #ffffff; padding: 12px; border-radius: 10px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid var(--border-subtle); box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <input type="checkbox" id="lego-entry-sma" checked>
+                            <span>[진입] SMA 20 &gt; 50 (골든크로스)</span>
+                        </label>
+                        <label style="background: #ffffff; padding: 12px; border-radius: 10px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid var(--border-subtle); box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <input type="checkbox" id="lego-entry-bb">
+                            <span>[진입] 볼린저 밴드 하단 반등</span>
+                        </label>
+                    </div>
+
+                    <!-- Exit Blocks -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px;">
+                        <label style="background: #ffffff; padding: 12px; border-radius: 10px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid var(--border-subtle); box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <input type="checkbox" id="lego-exit-rsi" checked>
+                            <span>[청산] RSI &gt; 70 (과열 청산)</span>
+                        </label>
+                        <label style="background: #ffffff; padding: 12px; border-radius: 10px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid var(--border-subtle); box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <input type="checkbox" id="lego-exit-sma" checked>
+                            <span>[청산] SMA 데드크로스 이탈</span>
+                        </label>
+                        <label style="background: #ffffff; padding: 12px; border-radius: 10px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid var(--border-subtle); box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <input type="checkbox" id="lego-exit-sl" checked>
+                            <span>[청산] -3.0% 칼손절 (Stop Loss)</span>
+                        </label>
+                        <label style="background: #ffffff; padding: 12px; border-radius: 10px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid var(--border-subtle); box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <input type="checkbox" id="lego-exit-tp">
+                            <span>[청산] +6.0% 목표 익절 (Take Profit)</span>
+                        </label>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                        <button class="btn-neon-primary mono" onclick="runLegoBacktest()">
+                            ⚡ Run Custom Strategy Simulation
+                        </button>
+                    </div>
+                </div>
+
+                <div class="backtest-stats-row mono">
+                    <div class="bt-stat-box">
+                        <span class="section-tag">Gross Return</span>
+                        <span id="bt-pnl" class="bt-val" style="color: var(--signal-buy);">+0.00%</span>
+                    </div>
+                    <div class="bt-stat-box">
+                        <span class="section-tag">Win Rate</span>
+                        <span id="bt-win" class="bt-val" style="color: var(--text-title);">0.0%</span>
+                    </div>
+                    <div class="bt-stat-box">
+                        <span class="section-tag">Max Drawdown (MDD)</span>
+                        <span id="bt-dd" class="bt-val" style="color: var(--signal-sell);">-0.00%</span>
+                    </div>
+                    <div class="bt-stat-box">
+                        <span class="section-tag">Trade Count & PF</span>
+                        <span id="bt-pf" class="bt-val" style="color: var(--text-title);">0 (PF: 0.0)</span>
+                    </div>
+                </div>
+
+                <div class="log-table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Simulation & Execution Log</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bt-table-body">
+                            <tr><td>시뮬레이션 대기 중...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ── Modals (Light Theme) ── -->
+
+    <!-- Auth Modal (Login / Sign Up) -->
+    <div id="auth-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="width: 420px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="auth-modal-title" style="color: var(--text-title); font-size: 18px; font-weight: 700;">로그인</h3>
+                <button onclick="closeAuthModal()" style="background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer;">✕</button>
+            </div>
+
+            <!-- Tab Switch -->
+            <div style="display: flex; border-bottom: 1px solid var(--border-subtle);">
+                <button id="tab-login" onclick="switchAuthTab('login')" class="mono" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid var(--primary); color: var(--text-title); font-weight: 700; cursor: pointer;">로그인</button>
+                <button id="tab-signup" onclick="switchAuthTab('signup')" class="mono" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-dim); cursor: pointer;">회원가입</button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <input id="auth-username" type="text" placeholder="아이디" class="mono" style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px 14px; color: var(--text-title); font-size: 13.5px;">
+                <input id="auth-password" type="password" placeholder="비밀번호" class="mono" style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px 14px; color: var(--text-title); font-size: 13.5px;">
+                
+                <div id="signup-extra-fields" style="display: none; flex-direction: column; gap: 12px;">
+                    <input id="auth-nickname" type="text" placeholder="닉네임 (커뮤니티 표시명)" class="mono" style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px 14px; color: var(--text-title); font-size: 13.5px;">
+                    <input id="auth-wallet" type="text" placeholder="Web3 지갑 주소 (선택: 0x...)" class="mono" style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px 14px; color: var(--text-title); font-size: 13.5px;">
+                </div>
+
+                <div id="auth-msg" style="font-size: 12.5px; min-height: 18px;"></div>
+
+                <button id="auth-submit-btn" onclick="handleAuthSubmit()" class="btn-neon-primary" style="width: 100%; justify-content: center; padding: 12px; font-size: 14px;">
+                    로그인
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Experts & Follow Modal -->
+    <div id="experts-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="width: 500px; max-height: 80vh;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="color: var(--text-title); font-size: 18px; font-weight: 700;">🌐 Top Financial Experts & Follow</h3>
+                <button onclick="closeExpertsModal()" style="background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer;">✕</button>
+            </div>
+            <p style="font-size: 13px; color: var(--text-dim);">검증된 퀀트/금융 분석가를 팔로우하고 투자 시그널을 교류하세요. (팔로우 시 평판 +5P)</p>
+            
+            <div id="experts-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+                <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">전문가 목록을 불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Community Feed Modal -->
+    <div id="feed-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="width: 620px; max-height: 85vh;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="color: var(--text-title); font-size: 18px; font-weight: 700;">📢 Community Insights & AI Fact-Check Feed</h3>
+                <button onclick="closeFeedModal()" style="background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer;">✕</button>
+            </div>
+
+            <!-- Create Post Box -->
+            <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; gap: 8px;">
+                    <input id="post-title" type="text" placeholder="분석 제목 (예: BTC 4H 골든크로스 발생)" class="mono" style="flex: 1; background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px 12px; color: var(--text-title); font-size: 13px;">
+                    <select id="post-bias" class="mono" style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 8px 12px; color: var(--text-title); font-size: 13px;">
+                        <option value="BULLISH">🟢 BULLISH</option>
+                        <option value="BEARISH">🔴 BEARISH</option>
+                        <option value="NEUTRAL">🟡 NEUTRAL</option>
+                    </select>
+                </div>
+                <textarea id="post-content" rows="2" placeholder="금융 분석 아이디어를 작성하세요 (작성 시 5.0 AETHER 토큰 보상 + ChromaDB 자동 색인)" class="mono" style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px 12px; color: var(--text-title); font-size: 13px; resize: none;"></textarea>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span id="post-reward-note" class="mono" style="font-size: 12px; color: #059669; font-weight: 700;">💎 Reward: +5.0 AETHER Token</span>
+                    <button onclick="submitCommunityPost()" class="btn-neon-primary mono" style="padding: 7px 18px; font-size: 12.5px;">
+                        ✍️ Publish Insight
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feed List -->
+            <div id="posts-container" style="display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto;">
+                <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">게시글을 불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Arena & Predictions Modal -->
+    <div id="arena-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="width: 680px; max-height: 85vh;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="color: var(--text-title); font-size: 18px; font-weight: 700;">🏆 Quant Arena & Prediction Leagues</h3>
+                <button onclick="closeArenaModal()" style="background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer;">✕</button>
+            </div>
+
+            <!-- Tab Switcher -->
+            <div style="display: flex; border-bottom: 1px solid var(--border-subtle);">
+                <button id="arena-tab-1" onclick="switchArenaTab(1)" class="mono" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid #d97706; color: var(--text-title); font-weight: 700; font-size: 13px; cursor: pointer;">🔥 24H 예측 & 연승 랭킹</button>
+                <button id="arena-tab-2" onclick="switchArenaTab(2)" class="mono" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-dim); font-size: 13px; cursor: pointer;">🧱 레고 퀀트 아레나</button>
+                <button id="arena-tab-3" onclick="switchArenaTab(3)" class="mono" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-dim); font-size: 13px; cursor: pointer;">🤖 AI vs Human 배틀</button>
+            </div>
+
+            <!-- Content Tab 1: 24H Prediction & Streak -->
+            <div id="arena-content-1" style="display: flex; flex-direction: column; gap: 14px;">
+                <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 14px; padding: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 14px; font-weight: 700; color: var(--text-title);">내일 <span id="pred-symbol-label">BTCUSDT</span>의 방향은?</div>
+                        <div style="font-size: 12px; color: var(--text-dim); margin-top: 2px;">참여 시 +0.5 AETHER, 적중 시 +10.0 AETHER 토큰 획득!</div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="submitPredictionVote('BULL')" class="btn-neon-primary mono" style="background: #059669; color: #fff; font-size: 12.5px; padding: 9px 18px;">
+                            🟢 BULL (상승)
+                        </button>
+                        <button onclick="submitPredictionVote('BEAR')" class="btn-neon-primary mono" style="background: #e11d48; color: #fff; font-size: 12.5px; padding: 9px 18px;">
+                            🔴 BEAR (하락)
+                        </button>
+                    </div>
+                </div>
+
+                <span class="section-tag mono">🔥 연속 적중(Streak) & 승률 리더보드 (Oracle Hall of Fame)</span>
+                <div id="prediction-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;">
+                    <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">리더보드를 불러오는 중...</div>
+                </div>
+            </div>
+
+            <!-- Content Tab 2: Lego Strategy Arena -->
+            <div id="arena-content-2" style="display: none; flex-direction: column; gap: 14px;">
+                <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 14px; padding: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 14px; font-weight: 700; color: var(--text-title);">내 레고 전략을 시즌 1 리그에 출전시키기</div>
+                        <div style="font-size: 12px; color: var(--text-dim); margin-top: 2px;">등록 시 +10.0 AETHER, 다른 유저가 카피 시 회당 +2.0 AETHER 수수료!</div>
+                    </div>
+                    <button onclick="submitCurrentLegoToArena()" class="btn-neon-primary mono" style="background: #d97706; color: #fff; font-size: 12.5px; padding: 9px 18px;">
+                        ⚔️ 리그 출전하기
+                    </button>
+                </div>
+
+                <span class="section-tag mono">🧱 Season 1 퀀트 아레나 랭킹 (실시간 수익률 & 카피 트레이딩)</span>
+                <div id="arena-strategy-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;">
+                    <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">아레나 랭킹을 불러오는 중...</div>
+                </div>
+            </div>
+
+            <!-- Content Tab 3: AI vs Human HiveMind -->
+            <div id="arena-content-3" style="display: none; flex-direction: column; gap: 14px;">
+                <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+                    <div style="font-size: 15px; font-weight: 700; color: var(--text-title); text-align: center;">
+                        🤖 Chroma AI vs 👥 인간 집단지성 대결 게이지
+                    </div>
+                    <p id="battle-commentary-text" class="module-desc-text" style="text-align: center; font-size: 13px; color: #b45309;">
+                        대결 현황을 집계 중입니다...
+                    </p>
+
+                    <!-- Gauge Bar -->
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px;" class="mono">
+                            <span style="color: var(--signal-buy);">👥 Human Bull: <strong id="battle-human-bull">0.0%</strong></span>
+                            <span style="color: var(--signal-sell);">Human Bear: <strong id="battle-human-bear">0.0%</strong></span>
+                        </div>
+                        <div style="width: 100%; height: 12px; background: #ffe4e6; border-radius: 999px; overflow: hidden; display: flex;">
+                            <div id="battle-gauge-fill" style="width: 50%; height: 100%; background: #059669; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 12px 16px; border-radius: 10px; font-size: 13px; border: 1px solid var(--border-subtle);">
+                        <div>🤖 <strong>AI 판단:</strong> <span id="battle-ai-decision" class="mono" style="color: var(--signal-buy); font-weight: 700;">BULLISH (+0.55)</span></div>
+                        <div>👥 <strong>총 투표 수:</strong> <span id="battle-total-votes" class="mono" style="font-weight: 700;">42표</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wallet & Withdrawal Modal -->
+    <div id="wallet-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="width: 600px; max-height: 85vh;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="color: var(--text-title); font-size: 18px; font-weight: 700;">💳 AETHER Token Wallet & Withdrawal</h3>
+                <button onclick="closeWalletModal()" style="background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer;">✕</button>
+            </div>
+
+            <!-- Balance Card -->
+            <div style="background: linear-gradient(135deg, #f5f3ff, #f0f9ff); border: 1px solid #ddd6fe; border-radius: 16px; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span class="section-tag mono" style="color: #7c3aed;">Available Token Balance</span>
+                    <div id="wallet-balance-num" class="mono" style="font-size: 28px; font-weight: 800; color: #4c1d95; margin-top: 4px;">50.00 AETHER</div>
+                    <div style="font-size: 12px; color: var(--text-dim); margin-top: 2px;">비관적 락(SELECT FOR UPDATE) 동시성 보호 적용</div>
+                </div>
+                <div style="text-align: right;">
+                    <span class="mono" style="font-size: 12px; background: #ffffff; padding: 6px 12px; border-radius: 8px; color: #b45309; font-weight: 700; border: 1px solid #fde68a;" id="wallet-rep-badge">★ 100 Rep</span>
+                </div>
+            </div>
+
+            <!-- Withdrawal Form -->
+            <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+                <div style="font-size: 13.5px; font-weight: 700; color: var(--text-title);">출금 신청 (Instant Withdrawal)</div>
+                
+                <div style="display: flex; gap: 8px;">
+                    <select id="withdraw-type" class="mono" style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; color: var(--text-title); font-size: 12.5px;" onchange="handleWithdrawTypeChange()">
+                        <option value="BYBIT_UID">⚡ Bybit UID (수수료 0원 즉시 출금)</option>
+                        <option value="WEB3_WALLET">💎 Web3 Wallet (0x... 온체인 출금)</option>
+                    </select>
+                    <input id="withdraw-dest" type="text" placeholder="Bybit UID 8자리 입력" class="mono" style="flex: 1; background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px 12px; color: var(--text-title); font-size: 13px;">
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <input id="withdraw-amount" type="number" placeholder="출금 수량 (최소 1.0 AETHER)" class="mono" style="flex: 1; background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px 12px; color: var(--text-title); font-size: 13px;">
+                    <button onclick="setMaxWithdrawAmount()" class="nav-pill mono" style="font-size: 11.5px; background: #ffffff;">MAX</button>
+                    <button onclick="submitWithdrawal()" class="btn-neon-primary mono" style="background: #7c3aed; color: #fff; font-size: 13px; padding: 10px 20px;">
+                        ⚡ 출금 실행
+                    </button>
+                </div>
+            </div>
+
+            <!-- Proof & Audit History -->
+            <span class="section-tag mono">🔒 출금 감사 원장 & 암호학적 영수증 증명 (Proof of Receipt)</span>
+            <div id="withdrawal-history-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;">
+                <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 16px;">출금 이력을 불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── JavaScript Logic ── -->
+    <script>
+        let currentSymbol = 'BTCUSDT';
+        let currentTimeFrame = 'D1';
+        let chartInstance = null;
+        let candleSeries = null;
+        let currentUserId = 1;
+        let authMode = 'login';
+        let currentUserBalance = 50.0;
+
+        function initChart() {
+            const container = document.getElementById('chart-canvas');
+            container.innerHTML = '';
+
+            chartInstance = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: 380,
+                layout: {
+                    background: { color: '#ffffff' },
+                    textColor: '#64748b',
+                    fontSize: 11,
+                    fontFamily: 'JetBrains Mono, monospace',
+                },
+                grid: {
+                    vertLines: { color: 'rgba(0, 0, 0, 0.04)' },
+                    horzLines: { color: 'rgba(0, 0, 0, 0.04)' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                    vertLine: { color: 'rgba(2, 132, 199, 0.4)', width: 1, style: 3 },
+                    horzLine: { color: 'rgba(2, 132, 199, 0.4)', width: 1, style: 3 },
+                },
+                rightPriceScale: {
+                    borderColor: '#e2e8f0',
+                },
+                timeScale: {
+                    borderColor: '#e2e8f0',
+                    timeVisible: true,
+                },
+            });
+
+            candleSeries = chartInstance.addCandlestickSeries({
+                upColor: '#059669',
+                downColor: '#e11d48',
+                borderVisible: false,
+                wickUpColor: '#059669',
+                wickDownColor: '#e11d48',
+            });
+
+            window.addEventListener('resize', () => {
+                if (chartInstance && container) {
+                    chartInstance.applyOptions({ width: container.clientWidth });
+                }
+            });
+        }
+
+        function switchSymbol(symbol, btn) {
+            currentSymbol = symbol;
+            document.querySelectorAll('[data-symbol]').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            refreshTerminal();
+        }
+
+        function switchTimeFrame(tf, btn) {
+            currentTimeFrame = tf;
+            document.querySelectorAll('[data-tf]').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            refreshTerminal();
+        }
+
+        function applyQuickPrompt(symbol, text) {
+            document.getElementById('nlp-prompt-input').value = text;
+            switchSymbol(symbol, null);
+        }
+
+        function handleNlpPrompt() {
+            const input = document.getElementById('nlp-prompt-input').value.trim();
+            if (!input) return;
+
+            const upper = input.toUpperCase();
+            if (upper.includes('ETH') || upper.includes('이더')) {
+                currentSymbol = 'ETHUSDT';
+            } else if (upper.includes('NVDA') || upper.includes('엔비디아')) {
+                currentSymbol = 'NVDA';
+            } else if (upper.includes('AAPL') || upper.includes('애플')) {
+                currentSymbol = 'AAPL';
+            } else if (upper.includes('삼성') || upper.includes('005930')) {
+                currentSymbol = '005930.KS';
+            } else if (upper.includes('BTC') || upper.includes('비트')) {
+                currentSymbol = 'BTCUSDT';
+            }
+
+            refreshTerminal();
+        }
+
+        async function refreshTerminal() {
+            document.getElementById('active-symbol-label').innerText = currentSymbol;
+            setWorkflowState(1);
+
+            try {
+                // Step 1. Fetch Ingestion Candles
+                setWorkflowState(2);
+                const cRes = await fetch(`/api/market/historical?symbol=${currentSymbol}&timeFrame=${currentTimeFrame}&limit=100`);
+                if (cRes.ok) {
+                    const candles = await cRes.json();
+                    renderCandles(candles);
+                }
+
+                // Step 2 & 3 & 4. Fetch Decision Report
+                setWorkflowState(3);
+                const dRes = await fetch(`/api/trading/decision?symbol=${currentSymbol}&timeFrame=${currentTimeFrame}&limit=100`);
+                if (dRes.ok) {
+                    const report = await dRes.json();
+                    setWorkflowState(4);
+                    renderDecision(report);
+                }
+
+                // Run Backtest
+                executeBacktest();
+            } catch (e) {
+                console.warn('API error:', e);
+            }
+        }
+
+        function setWorkflowState(stepNum) {
+            for (let i = 1; i <= 4; i++) {
+                const item = document.getElementById(`step-${i}`);
+                if (!item) continue;
+                item.className = 'workflow-step';
+                if (i < stepNum) {
+                    item.classList.add('completed');
+                } else if (i === stepNum) {
+                    item.classList.add('active');
+                }
+            }
+        }
+
+        function renderCandles(candles) {
+            if (!candles || candles.length === 0) return;
+            const data = candles.map(c => ({
+                time: new Date(c.timestamp).getTime() / 1000,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close
+            })).sort((a, b) => a.time - b.time);
+
+            candleSeries.setData(data);
+            chartInstance.timeScale().fitContent();
+
+            const last = data[data.length - 1];
+            document.getElementById('price-ticker').innerText = `$${last.close.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        function renderDecision(report) {
+            const chip = document.getElementById('hero-chip');
+            const action = report.finalAction;
+            chip.innerText = action.replace('_', ' ');
+            chip.className = `action-hero-badge mono ${action.includes('BUY') ? 'buy' : action.includes('SELL') ? 'sell' : 'hold'}`;
+
+            document.getElementById('hero-rationale').innerText = report.decisionReason;
+            document.getElementById('hero-divergence').innerHTML = `<span>⚡</span> <span>${report.divergenceRisk}</span>`;
+
+            const score = report.totalScore;
+            const scoreNum = document.getElementById('hero-score-num');
+            scoreNum.innerText = (score >= 0 ? '+' : '') + score.toFixed(2);
+            scoreNum.style.color = score >= 0.2 ? 'var(--signal-buy)' : score <= -0.2 ? 'var(--signal-sell)' : 'var(--signal-amber)';
+
+            const pct = ((score + 1.0) / 2.0) * 100;
+            const fill = document.getElementById('hero-score-fill');
+            fill.style.width = `${pct}%`;
+            fill.style.background = score >= 0.2 ? 'var(--signal-buy)' : score <= -0.2 ? 'var(--signal-sell)' : 'var(--signal-amber)';
+
+            if (report.quantSignal) {
+                const q = report.quantSignal;
+                document.getElementById('metric-rsi').innerText = `${q.rsi.toFixed(1)} (${q.rsiStatus})`;
+                document.getElementById('metric-sma').innerText = q.goldenCross ? '⚡ Golden Cross' : q.deadCross ? '⚠️ Dead Cross' : 'Neutral';
+                document.getElementById('metric-bb-u').innerText = `$${q.bollingerUpper.toFixed(2)}`;
+                document.getElementById('metric-bb-l').innerText = `$${q.bollingerLower.toFixed(2)}`;
+            }
+
+            if (report.qualInsight) {
+                const ai = report.qualInsight;
+                const pill = document.getElementById('sentiment-pill');
+                pill.innerText = ai.sentiment;
+                pill.className = `sentiment-chip mono ${ai.sentiment.toLowerCase()}`;
+
+                document.getElementById('sentiment-score-num').innerText = (ai.sentimentScore >= 0 ? '+' : '') + ai.sentimentScore.toFixed(2);
+                document.getElementById('macro-summary-text').innerText = ai.macroSummary;
+                document.getElementById('risk-factor-text').innerText = ai.riskFactors;
+
+                const feed = document.getElementById('news-feed');
+                feed.innerHTML = '';
+                if (ai.keyHeadlines) {
+                    ai.keyHeadlines.forEach(h => {
+                        const bubble = document.createElement('div');
+                        bubble.className = 'headline-bubble';
+                        bubble.innerText = h;
+                        feed.appendChild(bubble);
+                    });
+                }
+            }
+
+            if (report.patternInsight) {
+                const p = report.patternInsight;
+                document.getElementById('pattern-winrate').innerText = `WinRate: ${(p.historicalWinRate * 100).toFixed(0)}% (Exp: +${(p.expectedReturn5Day * 100).toFixed(1)}%)`;
+                document.getElementById('pattern-desc').innerText = `[${p.patternName}] ${p.patternSummary}`;
+            }
+
+            if (report.agentReflection) {
+                document.getElementById('agent-reflection-text').innerText = report.agentReflection;
+            }
+
+            if (report.personaAdvice) {
+                const adv = report.personaAdvice;
+                document.getElementById('persona-buffett').innerText = adv.warrenBuffett || '-';
+                document.getElementById('persona-simons').innerText = adv.jimSimons || '-';
+                document.getElementById('persona-dalio').innerText = adv.rayDalio || '-';
+            }
+        }
+
+        async function executeBacktest() {
+            try {
+                const res = await fetch(`/api/quant/backtest?symbol=${currentSymbol}&timeFrame=${currentTimeFrame}&limit=200`);
+                if (res.ok) {
+                    const result = await res.json();
+                    const pnl = document.getElementById('bt-pnl');
+                    pnl.innerText = (result.grossReturnPercentage >= 0 ? '+' : '') + result.grossReturnPercentage.toFixed(2) + '%';
+                    pnl.style.color = result.grossReturnPercentage >= 0 ? 'var(--signal-buy)' : 'var(--signal-sell)';
+
+                    document.getElementById('bt-win').innerText = result.winRatePercentage.toFixed(1) + '%';
+                    document.getElementById('bt-dd').innerText = '-' + Math.abs(result.maxDrawdownPercentage).toFixed(2) + '%';
+                    document.getElementById('bt-pf').innerText = `${result.totalTrades} trades (PF: ${result.profitFactor.toFixed(2)})`;
+
+                    const tbody = document.getElementById('bt-table-body');
+                    tbody.innerHTML = '';
+                    if (result.tradeLogs && result.tradeLogs.length > 0) {
+                        result.tradeLogs.forEach(log => {
+                            const tr = document.createElement('tr');
+                            const td = document.createElement('td');
+                            td.className = 'mono';
+                            td.innerText = log;
+                            tr.appendChild(td);
+                            tbody.appendChild(tr);
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td>체결된 거래 내역이 없습니다.</td></tr>';
+                    }
+                }
+            } catch (e) {
+                console.warn('Backtest error:', e);
+            }
+        }
+
+        function toggleLegoPanel() {
+            const panel = document.getElementById('lego-config-panel');
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        async function runLegoBacktest() {
+            const req = {
+                symbol: currentSymbol,
+                timeFrame: currentTimeFrame,
+                limit: 200,
+                strategyName: "Custom Lego Builder Strategy",
+                useRsiEntry: document.getElementById('lego-entry-rsi').checked,
+                rsiPeriod: 14,
+                rsiBuyThreshold: 30.0,
+                useSmaCrossEntry: document.getElementById('lego-entry-sma').checked,
+                smaShortPeriod: 20,
+                smaLongPeriod: 50,
+                useBollingerLowerEntry: document.getElementById('lego-entry-bb').checked,
+                bollingerPeriod: 20,
+                entryLogicOp: "AND",
+                useRsiExit: document.getElementById('lego-exit-rsi').checked,
+                rsiSellThreshold: 70.0,
+                useSmaCrossExit: document.getElementById('lego-exit-sma').checked,
+                useStopLoss: document.getElementById('lego-exit-sl').checked,
+                stopLossPct: 3.0,
+                useTakeProfit: document.getElementById('lego-exit-tp').checked,
+                takeProfitPct: 6.0,
+                exitLogicOp: "OR"
+            };
+
+            try {
+                const res = await fetch('/api/quant/custom-backtest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(req)
+                });
+                if (res.ok) {
+                    const result = await res.json();
+                    document.getElementById('bt-pnl').innerText = (result.grossReturnPercentage >= 0 ? '+' : '') + result.grossReturnPercentage.toFixed(2) + '%';
+                    document.getElementById('bt-pnl').style.color = result.grossReturnPercentage >= 0 ? 'var(--signal-buy)' : 'var(--signal-sell)';
+                    document.getElementById('bt-win').innerText = result.winRatePercentage.toFixed(1) + '%';
+                    document.getElementById('bt-dd').innerText = '-' + Math.abs(result.maxDrawdownPercentage).toFixed(2) + '%';
+                    document.getElementById('bt-pf').innerText = `${result.totalTrades} trades (PF: ${result.profitFactor.toFixed(2)})`;
+
+                    const tbody = document.getElementById('bt-table-body');
+                    tbody.innerHTML = '';
+                    if (result.tradeLogs && result.tradeLogs.length > 0) {
+                        result.tradeLogs.forEach(log => {
+                            const tr = document.createElement('tr');
+                            const td = document.createElement('td');
+                            td.className = 'mono';
+                            td.innerText = log;
+                            tr.appendChild(td);
+                            tbody.appendChild(tr);
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td>선택된 레고 전략 조합에 만족하는 체결 내역이 없습니다.</td></tr>';
+                    }
+                }
+            } catch (e) {
+                console.warn('Lego backtest error:', e);
+            }
+        }
+
+        // ── Auth Modal Logic ──
+        function openAuthModal() {
+            document.getElementById('auth-modal').style.display = 'flex';
+            document.getElementById('auth-msg').innerText = '';
+        }
+
+        function closeAuthModal() {
+            document.getElementById('auth-modal').style.display = 'none';
+        }
+
+        function switchAuthTab(mode) {
+            authMode = mode;
+            const tabLogin = document.getElementById('tab-login');
+            const tabSignup = document.getElementById('tab-signup');
+            const extra = document.getElementById('signup-extra-fields');
+            const btn = document.getElementById('auth-submit-btn');
+            const title = document.getElementById('auth-modal-title');
+            document.getElementById('auth-msg').innerText = '';
+
+            if (mode === 'login') {
+                tabLogin.style.borderBottomColor = 'var(--primary)';
+                tabLogin.style.color = 'var(--text-title)';
+                tabSignup.style.borderBottomColor = 'transparent';
+                tabSignup.style.color = 'var(--text-dim)';
+                extra.style.display = 'none';
+                btn.innerText = '로그인';
+                title.innerText = '로그인';
+            } else {
+                tabSignup.style.borderBottomColor = 'var(--primary)';
+                tabSignup.style.color = 'var(--text-title)';
+                tabLogin.style.borderBottomColor = 'transparent';
+                tabLogin.style.color = 'var(--text-dim)';
+                extra.style.display = 'flex';
+                btn.innerText = '회원가입 완료';
+                title.innerText = '회원가입';
+            }
+        }
+
+        async function handleAuthSubmit() {
+            const u = document.getElementById('auth-username').value.trim();
+            const p = document.getElementById('auth-password').value.trim();
+            const msg = document.getElementById('auth-msg');
+
+            if (!u || !p) {
+                msg.style.color = 'var(--signal-sell)';
+                msg.innerText = '아이디와 비밀번호를 입력해주세요.';
+                return;
+            }
+
+            try {
+                if (authMode === 'login') {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: u, password: p })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        msg.style.color = 'var(--signal-buy)';
+                        msg.innerText = '로그인 성공!';
+                        document.getElementById('user-badge-text').innerText = `✨ ${data.nickname} (평판: ${data.reputationScore}P)`;
+                        setTimeout(closeAuthModal, 1000);
+                    } else {
+                        msg.style.color = 'var(--signal-sell)';
+                        msg.innerText = data.message || '로그인 실패';
+                    }
+                } else {
+                    const nick = document.getElementById('auth-nickname').value.trim();
+                    const wallet = document.getElementById('auth-wallet').value.trim();
+                    if (!nick) {
+                        msg.style.color = 'var(--signal-sell)';
+                        msg.innerText = '닉네임을 입력해주세요.';
+                        return;
+                    }
+
+                    const res = await fetch('/api/auth/signup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: u, password: p, nickname: nick, walletAddress: wallet })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        msg.style.color = 'var(--signal-buy)';
+                        msg.innerText = '회원가입 성공! 환영합니다.';
+                        currentUserId = data.userId;
+                        document.getElementById('user-badge-text').innerText = `✨ ${data.nickname} (평판: ${data.reputationScore}P)`;
+                        setTimeout(closeAuthModal, 1000);
+                    } else {
+                        msg.style.color = 'var(--signal-sell)';
+                        msg.innerText = data.message || '회원가입 실패';
+                    }
+                }
+            } catch (e) {
+                msg.style.color = 'var(--signal-sell)';
+                msg.innerText = '서버 연결 실패: ' + e.message;
+            }
+        }
+
+        // ── Experts & Follow Logic ──
+        function openExpertsModal() {
+            document.getElementById('experts-modal').style.display = 'flex';
+            loadExperts();
+        }
+
+        function closeExpertsModal() {
+            document.getElementById('experts-modal').style.display = 'none';
+        }
+
+        async function loadExperts() {
+            const list = document.getElementById('experts-list');
+            try {
+                const res = await fetch(`/api/community/experts?currentUserId=${currentUserId}&limit=10`);
+                if (res.ok) {
+                    const experts = await res.json();
+                    list.innerHTML = '';
+                    if (experts.length === 0) {
+                        list.innerHTML = '<div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">등록된 분석가가 없습니다. 먼저 회원가입을 해보세요!</div>';
+                        return;
+                    }
+
+                    experts.forEach(exp => {
+                        const card = document.createElement('div');
+                        card.style = 'background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;';
+                        
+                        const isMe = exp.userId === currentUserId;
+                        const followBtnText = exp.isFollowedByMe ? '✓ 팔로잉' : '+ 팔로우';
+                        const followBtnStyle = exp.isFollowedByMe ? 
+                            'background: #e2e8f0; color: var(--text-dim); border: 1px solid var(--border-subtle);' : 
+                            'background: var(--primary); color: #fff; font-weight: 700; border: none;';
+
+                        card.innerHTML = `
+                            <div>
+                                <div style="font-size: 14px; font-weight: 700; color: var(--text-title); display: flex; align-items: center; gap: 6px;">
+                                    <span>${exp.nickname}</span>
+                                    <span class="mono" style="font-size: 11px; color: var(--signal-amber);">★ ${exp.reputationScore}P</span>
+                                    ${exp.role === 'ROLE_EXPERT' ? '<span style="font-size: 10px; background: #f3e8ff; color: #7e22ce; padding: 1px 6px; border-radius: 4px; font-weight: 700;">EXPERT</span>' : ''}
+                                </div>
+                                <div class="mono" style="font-size: 11.5px; color: var(--text-dim); margin-top: 2px;">
+                                    팔로워: <strong style="color: var(--text-body);">${exp.followerCount}명</strong> | 팔로잉: ${exp.followingCount}명
+                                </div>
+                            </div>
+                            ${isMe ? '<span style="font-size: 11px; color: var(--text-dim); padding: 4px 8px;">(나)</span>' : `
+                                <button class="nav-pill mono" onclick="toggleFollowExpert(${exp.userId})" style="${followBtnStyle} font-size: 11px; padding: 5px 12px;">
+                                    ${followBtnText}
+                                </button>
+                            `}
+                        `;
+                        list.appendChild(card);
+                    });
+                }
+            } catch (e) {
+                list.innerHTML = `<div style="font-size: 12px; color: var(--signal-sell); text-align: center; padding: 10px;">불러오기 실패: ${e.message}</div>`;
+            }
+        }
+
+        async function toggleFollowExpert(targetId) {
+            try {
+                const res = await fetch(`/api/community/follow/${targetId}?followerId=${currentUserId}`, { method: 'POST' });
+                if (res.ok) {
+                    loadExperts();
+                }
+            } catch (e) {
+                console.warn('Follow error:', e);
+            }
+        }
+
+        // ── Community Feed & Post Logic ──
+        function openFeedModal() {
+            document.getElementById('feed-modal').style.display = 'flex';
+            loadFeedPosts();
+        }
+
+        function closeFeedModal() {
+            document.getElementById('feed-modal').style.display = 'none';
+        }
+
+        async function loadFeedPosts() {
+            const container = document.getElementById('posts-container');
+            try {
+                const res = await fetch(`/api/community/posts?symbol=${currentSymbol}&currentUserId=${currentUserId}&limit=15`);
+                if (res.ok) {
+                    const posts = await res.json();
+                    container.innerHTML = '';
+                    if (posts.length === 0) {
+                        container.innerHTML = '<div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">아직 작성된 분석글이 없습니다. 첫 번째 인사이트를 공유해보세요!</div>';
+                        return;
+                    }
+
+                    posts.forEach(p => {
+                        const card = document.createElement('div');
+                        card.style = 'background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px;';
+                        
+                        const biasColor = p.sentimentBias === 'BULLISH' ? 'var(--signal-buy)' : p.sentimentBias === 'BEARISH' ? 'var(--signal-sell)' : 'var(--signal-amber)';
+                        const likeColor = p.likedByMe ? '#db2777' : 'var(--text-dim)';
+
+                        card.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 14px; font-weight: 700; color: var(--text-title);">${p.authorNickname}</span>
+                                    <span class="mono" style="font-size: 11px; color: var(--signal-amber);">★ ${p.authorReputation}P</span>
+                                    <span class="mono" style="font-size: 11.5px; background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-weight: 700;">${p.symbol}</span>
+                                </div>
+                                <span class="mono" style="font-size: 12px; font-weight: 800; color: ${biasColor};">${p.sentimentBias}</span>
+                            </div>
+
+                            <div style="font-size: 14px; font-weight: 700; color: var(--text-title);">${p.title}</div>
+                            <div style="font-size: 13px; color: var(--text-body); line-height: 1.55; white-space: pre-wrap;">${p.content}</div>
+
+                            <!-- AI Fact Check Badge -->
+                            <div style="background: #ecfdf5; border-left: 3px solid #059669; padding: 8px 12px; border-radius: 6px; font-size: 12.5px; color: #065f46;">
+                                🤖 <strong>AI Fact-Check:</strong> ${p.aiFactCheckSummary}
+                            </div>
+
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-dim); margin-top: 4px;">
+                                <div>💎 AETHER 보상: <strong style="color: #059669;">${p.rewardTokenAmount.toFixed(1)} 토큰</strong></div>
+                                <button onclick="togglePostLike(${p.postId})" class="nav-pill mono" style="color: ${likeColor}; border-color: ${likeColor}; font-size: 11.5px; padding: 3px 10px; background: #ffffff;">
+                                    ♥ 좋아요 ${p.likeCount}
+                                </button>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+                }
+            } catch (e) {
+                container.innerHTML = `<div style="font-size: 12px; color: var(--signal-sell); text-align: center; padding: 10px;">피드 로딩 실패: ${e.message}</div>`;
+            }
+        }
+
+        async function submitCommunityPost() {
+            const title = document.getElementById('post-title').value.trim();
+            const content = document.getElementById('post-content').value.trim();
+            const bias = document.getElementById('post-bias').value;
+
+            if (!title || !content) {
+                alert('제목과 분석 내용을 입력해주세요.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/community/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        authorId: currentUserId,
+                        symbol: currentSymbol,
+                        title: title,
+                        content: content,
+                        sentimentBias: bias
+                    })
+                });
+
+                if (res.ok) {
+                    document.getElementById('post-title').value = '';
+                    document.getElementById('post-content').value = '';
+                    loadFeedPosts();
+                } else {
+                    alert('게시글 작성 실패. 로그인 상태를 확인하세요.');
+                }
+            } catch (e) {
+                alert('서버 연결 실패: ' + e.message);
+            }
+        }
+
+        async function togglePostLike(postId) {
+            try {
+                const res = await fetch(`/api/community/posts/${postId}/like?userId=${currentUserId}`, { method: 'POST' });
+                if (res.ok) {
+                    loadFeedPosts();
+                }
+            } catch (e) {
+                console.warn('Like error:', e);
+            }
+        }
+
+        // ── Arena & Predictions Logic ──
+        function openArenaModal() {
+            document.getElementById('arena-modal').style.display = 'flex';
+            document.getElementById('pred-symbol-label').innerText = currentSymbol;
+            switchArenaTab(1);
+        }
+
+        function closeArenaModal() {
+            document.getElementById('arena-modal').style.display = 'none';
+        }
+
+        function switchArenaTab(num) {
+            for (let i = 1; i <= 3; i++) {
+                document.getElementById(`arena-tab-${i}`).style.borderBottomColor = (i === num) ? '#d97706' : 'transparent';
+                document.getElementById(`arena-tab-${i}`).style.color = (i === num) ? 'var(--text-title)' : 'var(--text-dim)';
+                document.getElementById(`arena-content-${i}`).style.display = (i === num) ? 'flex' : 'none';
+            }
+
+            if (num === 1) loadPredictionLeaderboard();
+            else if (num === 2) loadArenaStrategies();
+            else if (num === 3) loadHiveMindBattle();
+        }
+
+        async function submitPredictionVote(dir) {
+            try {
+                const res = await fetch('/api/prediction/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUserId,
+                        symbol: currentSymbol,
+                        predictionType: 'DIRECTION_24H',
+                        predictedDirection: dir
+                    })
+                });
+
+                if (res.ok) {
+                    alert(`✅ ${currentSymbol} ${dir} 예측이 성공적으로 등록되었습니다! (+0.5 AETHER 지급)`);
+                    loadPredictionLeaderboard();
+                } else {
+                    alert('예측 등록 실패. 로그인 상태를 확인해주세요.');
+                }
+            } catch (e) {
+                alert('서버 오류: ' + e.message);
+            }
+        }
+
+        async function loadPredictionLeaderboard() {
+            const list = document.getElementById('prediction-leaderboard-list');
+            try {
+                const res = await fetch('/api/prediction/leaderboard?limit=15');
+                if (res.ok) {
+                    const data = await res.json();
+                    list.innerHTML = '';
+                    if (data.length === 0) {
+                        list.innerHTML = '<div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">아직 예측 데이터가 없습니다. 먼저 예측 투표를 진행해보세요!</div>';
+                        return;
+                    }
+
+                    data.forEach(item => {
+                        const card = document.createElement('div');
+                        card.style = 'background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;';
+                        
+                        const tierBadge = item.tier === 'ORACLE' ? '💎 ORACLE' :
+                                         item.tier === 'GRAND_MASTER' ? '🥇 GRAND MASTER' :
+                                         item.tier === 'MASTER' ? '🥈 MASTER' :
+                                         item.tier === 'TRADER' ? '🥉 TRADER' : '🌱 NOVICE';
+                        
+                        const tierColor = item.tier === 'ORACLE' ? '#0284c7' :
+                                         item.tier === 'GRAND_MASTER' ? '#d97706' :
+                                         item.tier === 'MASTER' ? '#475569' : '#16a34a';
+
+                        card.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span class="mono" style="font-size: 14px; font-weight: 800; color: #d97706; width: 26px;">#${item.rank}</span>
+                                <div>
+                                    <div style="font-size: 14px; font-weight: 700; color: var(--text-title); display: flex; align-items: center; gap: 6px;">
+                                        <span>${item.nickname}</span>
+                                        <span class="mono" style="font-size: 10.5px; background: #ffffff; color: ${tierColor}; padding: 2px 6px; border-radius: 4px; font-weight: 700; border: 1px solid var(--border-subtle);">${tierBadge}</span>
+                                    </div>
+                                    <div class="mono" style="font-size: 11.5px; color: var(--text-dim); margin-top: 2px;">
+                                        승률: <strong style="color: var(--signal-buy);">${item.winRatePct}%</strong> (${item.wonPredictions}/${item.totalPredictions} 적중) | 획득 토큰: ${item.totalEarnedTokens.toFixed(1)} AETHER
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mono" style="font-size: 13.5px; font-weight: 800; color: #ea580c;">
+                                🔥 ${item.currentStreak}연승
+                            </div>
+                        `;
+                        list.appendChild(card);
+                    });
+                }
+            } catch (e) {
+                list.innerHTML = `<div style="font-size: 12px; color: var(--signal-sell); text-align: center; padding: 10px;">로딩 실패: ${e.message}</div>`;
+            }
+        }
+
+        async function submitCurrentLegoToArena() {
+            const strategyName = prompt("출전할 퀀트 전략의 이름을 입력하세요:", "My Pro Trend Strategy");
+            if (!strategyName) return;
+
+            const req = {
+                authorId: currentUserId,
+                strategyName: strategyName,
+                symbol: currentSymbol,
+                strategyConfig: {
+                    symbol: currentSymbol,
+                    timeFrame: currentTimeFrame,
+                    limit: 200,
+                    strategyName: strategyName,
+                    useRsiEntry: document.getElementById('lego-entry-rsi').checked,
+                    rsiPeriod: 14,
+                    rsiBuyThreshold: 30.0,
+                    useSmaCrossEntry: document.getElementById('lego-entry-sma').checked,
+                    smaShortPeriod: 20,
+                    smaLongPeriod: 50,
+                    useBollingerLowerEntry: document.getElementById('lego-entry-bb').checked,
+                    bollingerPeriod: 20,
+                    entryLogicOp: "AND",
+                    useRsiExit: document.getElementById('lego-exit-rsi').checked,
+                    rsiSellThreshold: 70.0,
+                    useSmaCrossExit: document.getElementById('lego-exit-sma').checked,
+                    useStopLoss: document.getElementById('lego-exit-sl').checked,
+                    stopLossPct: 3.0,
+                    useTakeProfit: document.getElementById('lego-exit-tp').checked,
+                    takeProfitPct: 6.0,
+                    exitLogicOp: "OR"
+                }
+            };
+
+            try {
+                const res = await fetch('/api/arena/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(req)
+                });
+                if (res.ok) {
+                    alert(`⚔️ '${strategyName}' 전략이 시즌 1 아레나 리그에 등록되었습니다! (+10.0 AETHER 지급)`);
+                    loadArenaStrategies();
+                } else {
+                    alert('리그 등록 실패. 로그인 상태를 확인하세요.');
+                }
+            } catch (e) {
+                alert('서버 오류: ' + e.message);
+            }
+        }
+
+        async function loadArenaStrategies() {
+            const list = document.getElementById('arena-strategy-list');
+            try {
+                const res = await fetch('/api/arena/leaderboard?season=SEASON_1&limit=15');
+                if (res.ok) {
+                    const data = await res.json();
+                    list.innerHTML = '';
+                    if (data.length === 0) {
+                        list.innerHTML = '<div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">아직 출전된 전략이 없습니다. 내 레고 전략을 먼저 출전시켜보세요!</div>';
+                        return;
+                    }
+
+                    data.forEach(item => {
+                        const card = document.createElement('div');
+                        card.style = 'background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 14px; display: flex; justify-content: space-between; align-items: center;';
+                        
+                        const pnlColor = item.currentReturnPct >= 0 ? 'var(--signal-buy)' : 'var(--signal-sell)';
+
+                        card.innerHTML = `
+                            <div>
+                                <div style="font-size: 14px; font-weight: 700; color: var(--text-title); display: flex; align-items: center; gap: 8px;">
+                                    <span class="mono" style="color: #d97706;">#${item.rank}</span>
+                                    <span>${item.strategyName}</span>
+                                    <span class="mono" style="font-size: 11.5px; background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-weight: 700;">${item.symbol}</span>
+                                    <span style="font-size: 11.5px; color: var(--text-dim);">by ${item.authorNickname}</span>
+                                </div>
+                                <div class="mono" style="font-size: 11.5px; color: var(--text-dim); margin-top: 4px;">
+                                    수익률: <strong style="color: ${pnlColor};">${(item.currentReturnPct >= 0 ? '+' : '') + item.currentReturnPct.toFixed(2)}%</strong> |
+                                    승률: <strong style="color: var(--text-body);">${item.winRatePct.toFixed(1)}%</strong> |
+                                    손익비: ${item.profitFactor.toFixed(2)} |
+                                    카피: ${item.copyCount}회
+                                </div>
+                            </div>
+                            <button onclick="copyArenaStrategy(${item.arenaId})" class="btn-neon-primary mono" style="font-size: 11.5px; padding: 6px 14px;">
+                                📋 Copy Strategy
+                            </button>
+                        `;
+                        list.appendChild(card);
+                    });
+                }
+            } catch (e) {
+                list.innerHTML = `<div style="font-size: 12px; color: var(--signal-sell); text-align: center; padding: 10px;">아레나 로딩 실패: ${e.message}</div>`;
+            }
+        }
+
+        async function copyArenaStrategy(arenaId) {
+            try {
+                const res = await fetch(`/api/arena/${arenaId}/copy?userId=${currentUserId}`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    alert(`✅ '${data.strategyName}' 전략을 내 샌드박스로 복사했습니다! (원작자에게 2.0 AETHER 수수료 지급)`);
+                    loadArenaStrategies();
+                } else {
+                    alert('전략 복사 실패.');
+                }
+            } catch (e) {
+                console.warn('Copy error:', e);
+            }
+        }
+
+        async function loadHiveMindBattle() {
+            try {
+                const res = await fetch(`/api/prediction/battle?symbol=${currentSymbol}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('battle-commentary-text').innerText = data.battleCommentary;
+                    document.getElementById('battle-human-bull').innerText = data.humanBullPercentage.toFixed(1) + '%';
+                    document.getElementById('battle-human-bear').innerText = data.humanBearPercentage.toFixed(1) + '%';
+                    document.getElementById('battle-gauge-fill').style.width = data.humanBullPercentage + '%';
+                    document.getElementById('battle-ai-decision').innerText = `${data.aiDecision} (${data.aiConfidenceScore >= 0 ? '+' : ''}${data.aiConfidenceScore.toFixed(2)})`;
+                    document.getElementById('battle-total-votes').innerText = `${data.totalHumanVotes}표`;
+                }
+            } catch (e) {
+                console.warn('Battle load error:', e);
+            }
+        }
+
+        // ── Wallet & Withdrawal Logic ──
+        function openWalletModal() {
+            document.getElementById('wallet-modal').style.display = 'flex';
+            loadWalletSummary();
+        }
+
+        function closeWalletModal() {
+            document.getElementById('wallet-modal').style.display = 'none';
+        }
+
+        function handleWithdrawTypeChange() {
+            const type = document.getElementById('withdraw-type').value;
+            const input = document.getElementById('withdraw-dest');
+            if (type === 'BYBIT_UID') {
+                input.placeholder = 'Bybit UID 8자리 입력';
+            } else {
+                input.placeholder = '0x... 메타마스크 이더리움 지갑 주소 입력';
+            }
+        }
+
+        function setMaxWithdrawAmount() {
+            document.getElementById('withdraw-amount').value = currentUserBalance;
+        }
+
+        async function loadWalletSummary() {
+            try {
+                const res = await fetch(`/api/wallet/summary/${currentUserId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    currentUserBalance = data.tokenBalance;
+                    document.getElementById('wallet-balance-num').innerText = data.tokenBalance.toFixed(2) + ' AETHER';
+                    document.getElementById('wallet-rep-badge').innerText = `★ ${data.reputationScore} Rep`;
+
+                    const list = document.getElementById('withdrawal-history-list');
+                    list.innerHTML = '';
+                    if (!data.recentWithdrawals || data.recentWithdrawals.length === 0) {
+                        list.innerHTML = '<div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 14px;">출금 이력이 없습니다.</div>';
+                        return;
+                    }
+
+                    data.recentWithdrawals.forEach(w => {
+                        const card = document.createElement('div');
+                        card.style = 'background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);';
+                        
+                        card.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="font-size: 13.5px; font-weight: 700; color: var(--signal-buy);">
+                                    -${w.withdrawnAmount.toFixed(2)} AETHER 출금 완료
+                                </div>
+                                <span class="mono" style="font-size: 11px; background: #d1fae5; color: #047857; padding: 2px 7px; border-radius: 4px; font-weight: 700;">
+                                    ✓ COMPLETED
+                                </span>
+                            </div>
+                            <div class="mono" style="font-size: 11.5px; color: var(--text-dim);">
+                                목적지: ${w.destinationType} (${w.destinationAddress})
+                            </div>
+                            <div class="mono" style="font-size: 11px; color: #7c3aed; word-break: break-all; margin-top: 2px;">
+                                🔒 Proof Tx: ${w.proofTxHash}
+                            </div>
+                        `;
+                        list.appendChild(card);
+                    });
+                }
+            } catch (e) {
+                console.warn('Wallet summary load error:', e);
+            }
+        }
+
+        async function submitWithdrawal() {
+            const type = document.getElementById('withdraw-type').value;
+            const dest = document.getElementById('withdraw-dest').value.trim();
+            const amount = parseFloat(document.getElementById('withdraw-amount').value);
+
+            if (!dest) {
+                alert('출금 목적지 주소나 Bybit UID를 입력해주세요.');
+                return;
+            }
+            if (isNaN(amount) || amount <= 0) {
+                alert('유효한 출금 수량을 입력해주세요.');
+                return;
+            }
+            if (amount > currentUserBalance) {
+                alert(`출금 잔고가 부족합니다. (현재 보유: ${currentUserBalance.toFixed(2)} AETHER)`);
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/wallet/withdraw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUserId,
+                        amount: amount,
+                        destinationType: type,
+                        destinationAddress: dest
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    alert(`🎉 ${amount.toFixed(2)} AETHER 출금이 비관적 락 제어로 안전하게 처리되었습니다!\n\n🔒 Proof Tx: ${data.proofTxHash}\n🧾 영수증 증명 발급 완료!`);
+                    document.getElementById('withdraw-amount').value = '';
+                    loadWalletSummary();
+                } else {
+                    alert('출금 실패: ' + (data.message || '서버 오류'));
+                }
+            } catch (e) {
+                alert('서버 연결 실패: ' + e.message);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            refreshTerminal();
+        });
+    </script>
+</body>
+</html>
