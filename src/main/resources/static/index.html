@@ -15,10 +15,10 @@
             /* Energent.ai Crisp White & Modern Fintech Light Theme */
             --bg-void: #f8fafc;
             --bg-canvas: #ffffff;
-            --bg-card: rgba(255, 255, 255, 0.88);
+            --bg-card: rgba(255, 255, 255, 0.92);
             --bg-card-elevated: #ffffff;
             --bg-card-hover: #f1f5f9;
-            --bg-overlay: rgba(255, 255, 255, 0.85);
+            --bg-overlay: rgba(255, 255, 255, 0.88);
             
             --border-subtle: #e2e8f0;
             --border-highlight: rgba(2, 132, 199, 0.35);
@@ -80,7 +80,7 @@
             font-feature-settings: 'tnum' on, 'zero' on;
         }
 
-        /* Modern Gradient Text (Fintech Style) */
+        /* Modern Gradient Text */
         .gradient-text {
             background: linear-gradient(135deg, #0f172a 20%, #0284c7 65%, #7c3aed 100%);
             -webkit-background-clip: text;
@@ -111,19 +111,9 @@
             box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.08), 0 0 20px rgba(2, 132, 199, 0.06);
         }
 
-        .premium-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(2, 132, 199, 0.2), transparent);
-        }
-
         /* Header Navigation */
         header {
-            height: 70px;
+            height: 68px;
             background: var(--bg-overlay);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
@@ -233,32 +223,178 @@
             box-shadow: 0 6px 20px rgba(2, 132, 199, 0.38);
         }
 
+        /* ── [신규] 살아숨쉬는 무한 롤링 마키 티커 (Live Market Pulse Ticker) ── */
+        .marquee-container {
+            width: 100%;
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-subtle);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            position: relative;
+            height: 44px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+        }
+
+        .marquee-label {
+            background: linear-gradient(135deg, #0284c7, #7c3aed);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 0 16px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 10;
+            white-space: nowrap;
+            letter-spacing: 0.04em;
+        }
+
+        .marquee-track {
+            display: flex;
+            gap: 28px;
+            animation: marquee 35s linear infinite;
+            white-space: nowrap;
+            padding-left: 20px;
+        }
+
+        .marquee-track:hover {
+            animation-play-state: paused;
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .ticker-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12.5px;
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 6px;
+            transition: background 0.15s ease;
+        }
+
+        .ticker-item:hover {
+            background: #f1f5f9;
+        }
+
+        .ticker-symbol {
+            font-weight: 700;
+            color: var(--text-title);
+        }
+
+        .ticker-price {
+            font-weight: 600;
+            color: var(--text-body);
+        }
+
+        .ticker-change {
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .ticker-change.up {
+            background: #ecfdf5;
+            color: #059669;
+        }
+
+        .ticker-change.down {
+            background: #fff1f2;
+            color: #e11d48;
+        }
+
+        .ticker-vol {
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
+        /* ── [신규] 실시간 화제 이슈 롤링 슬랙 바 (Breaking News Marquee) ── */
+        .breaking-news-bar {
+            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 10px 18px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.02);
+        }
+
+        .news-badge-pulse {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            font-size: 11.5px;
+            font-weight: 800;
+            padding: 3px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+
+        .pulse-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #dc2626;
+            box-shadow: 0 0 8px #dc2626;
+            animation: pulseAnim 1.5s infinite;
+        }
+
+        @keyframes pulseAnim {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.6; }
+        }
+
+        .news-slide-content {
+            flex: 1;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-title);
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            transition: opacity 0.3s ease;
+        }
+
         /* Main Container */
         main {
             flex: 1;
-            padding: 36px 40px;
+            padding: 28px 40px;
             max-width: 1720px;
             width: 100%;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: 28px;
+            gap: 24px;
         }
 
-        /* ── Hero NLP AI Search Section (Energent Centerpiece - Light) ── */
+        /* ── Hero NLP AI Search Section ── */
         .hero-prompt-section {
             text-align: center;
             max-width: 1000px;
-            margin: 10px auto 0 auto;
+            margin: 0 auto;
             width: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 20px;
+            gap: 16px;
         }
 
         .hero-title {
-            font-size: 40px;
+            font-size: 38px;
             font-weight: 800;
             line-height: 1.2;
             letter-spacing: -0.03em;
@@ -266,7 +402,7 @@
         }
 
         .hero-subtitle {
-            font-size: 15.5px;
+            font-size: 15px;
             color: var(--text-body);
             max-width: 720px;
             line-height: 1.6;
@@ -277,11 +413,11 @@
             background: #ffffff;
             border: 1px solid rgba(2, 132, 199, 0.3);
             border-radius: 20px;
-            padding: 18px 22px;
+            padding: 16px 20px;
             box-shadow: 0 16px 40px -10px rgba(2, 132, 199, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 12px;
             position: relative;
         }
 
@@ -294,7 +430,7 @@
             font-weight: 500;
             resize: none;
             outline: none;
-            min-height: 54px;
+            min-height: 52px;
             line-height: 1.55;
         }
 
@@ -307,7 +443,7 @@
             justify-content: space-between;
             align-items: center;
             border-top: 1px solid var(--border-subtle);
-            padding-top: 14px;
+            padding-top: 12px;
         }
 
         .quick-chips-wrap {
@@ -322,7 +458,7 @@
             color: var(--text-body);
             font-size: 12.5px;
             font-weight: 600;
-            padding: 6px 14px;
+            padding: 5px 12px;
             border-radius: 20px;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -334,19 +470,18 @@
             color: var(--primary);
         }
 
-        /* Stat Counters Grid (Energent Style - Light) */
+        /* Stat Counters Grid */
         .stats-banner {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 16px;
-            margin-top: 4px;
         }
 
         .stat-item {
             background: #ffffff;
             border: 1px solid var(--border-subtle);
             border-radius: 16px;
-            padding: 18px 22px;
+            padding: 16px 20px;
             display: flex;
             flex-direction: column;
             gap: 4px;
@@ -355,7 +490,7 @@
         }
 
         .stat-val {
-            font-size: 24px;
+            font-size: 23px;
             font-weight: 800;
             color: var(--text-title);
             letter-spacing: -0.02em;
@@ -375,7 +510,7 @@
             background: #ffffff;
             border: 1px solid var(--border-subtle);
             border-radius: 14px;
-            padding: 14px 18px;
+            padding: 12px 18px;
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.02);
         }
 
@@ -427,7 +562,7 @@
 
         /* ── Top Decision Hero Banner ── */
         .decision-matrix-card {
-            padding: 28px 34px;
+            padding: 26px 32px;
             display: grid;
             grid-template-columns: 300px 1fr 340px;
             gap: 32px;
@@ -552,7 +687,7 @@
         }
 
         .card-header-bar {
-            padding: 20px 26px;
+            padding: 18px 24px;
             border-bottom: 1px solid var(--border-subtle);
             display: flex;
             justify-content: space-between;
@@ -569,10 +704,10 @@
         }
 
         .card-body-content {
-            padding: 24px 26px;
+            padding: 22px 24px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 18px;
         }
 
         #chart-canvas {
@@ -616,7 +751,7 @@
             color: var(--text-title);
         }
 
-        /* AI Intelligence Hub (Right Column - Light) */
+        /* AI Intelligence Hub */
         .ai-module-card {
             background: #f8fafc;
             border: 1px solid var(--border-subtle);
@@ -699,7 +834,7 @@
             color: var(--text-title);
         }
 
-        /* ── Backtesting Simulation & Lego Block Builder (Light) ── */
+        /* ── Backtesting Simulation & Lego Block Builder ── */
         .backtest-stats-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -761,7 +896,7 @@
             color: var(--text-title);
         }
 
-        /* Modal Overlay (Light Friendly) */
+        /* Modal Overlay */
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -805,13 +940,13 @@
 </head>
 <body>
 
-    <!-- Ambient Header (Clean White / Light Theme) -->
+    <!-- Ambient Header -->
     <header>
         <div class="header-brand" onclick="refreshTerminal()">
             <div class="brand-logo-glow">⚡</div>
             <div class="brand-text">
                 AETHER <span class="gradient-text">QUANTUM-AI</span>
-                <span class="brand-badge mono">v3.3 Light</span>
+                <span class="brand-badge mono">v3.3 Living</span>
             </div>
         </div>
 
@@ -819,6 +954,7 @@
             <div class="quick-chips-wrap mono" style="margin-right: 8px;">
                 <button class="nav-pill active mono" data-symbol="BTCUSDT" onclick="switchSymbol('BTCUSDT', this)">BTC/USDT</button>
                 <button class="nav-pill mono" data-symbol="ETHUSDT" onclick="switchSymbol('ETHUSDT', this)">ETH/USDT</button>
+                <button class="nav-pill mono" data-symbol="SOLUSDT" onclick="switchSymbol('SOLUSDT', this)">SOL/USDT</button>
                 <button class="nav-pill mono" data-symbol="NVDA" onclick="switchSymbol('NVDA', this)">NVDA</button>
                 <button class="nav-pill mono" data-symbol="AAPL" onclick="switchSymbol('AAPL', this)">AAPL</button>
                 <button class="nav-pill mono" data-symbol="005930.KS" onclick="switchSymbol('005930.KS', this)">005930</button>
@@ -856,9 +992,110 @@
         </div>
     </header>
 
+    <!-- ── [신규] 살아숨쉬는 무한 롤링 볼륨 & 시세 마키 바 (Live Market Pulse) ── -->
+    <div class="marquee-container mono">
+        <div class="marquee-label">
+            <span>🔥 24H TOP VOLUME</span>
+        </div>
+        <div class="marquee-track" id="live-marquee-track">
+            <!-- Dynamic 롤링 티커 아이템들 (2세트 반복으로 무한 롤링) -->
+            <div class="ticker-item" onclick="switchSymbol('BTCUSDT', null)">
+                <span class="ticker-symbol">BTC/USDT</span>
+                <span class="ticker-price">$64,320.50</span>
+                <span class="ticker-change up">+4.85% 🟢</span>
+                <span class="ticker-vol">Vol: $32.4B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('ETHUSDT', null)">
+                <span class="ticker-symbol">ETH/USDT</span>
+                <span class="ticker-price">$3,492.10</span>
+                <span class="ticker-change up">+3.18% 🟢</span>
+                <span class="ticker-vol">Vol: $18.2B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('SOLUSDT', null)">
+                <span class="ticker-symbol">SOL/USDT</span>
+                <span class="ticker-price">$154.60</span>
+                <span class="ticker-change up">+8.92% 🚀</span>
+                <span class="ticker-vol">Vol: $9.4B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('NVDA', null)">
+                <span class="ticker-symbol">NVDA</span>
+                <span class="ticker-price">$128.80</span>
+                <span class="ticker-change up">+2.45% 🟢</span>
+                <span class="ticker-vol">Vol: $28.1B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('DOGEUSDT', null)">
+                <span class="ticker-symbol">DOGE/USDT</span>
+                <span class="ticker-price">$0.142</span>
+                <span class="ticker-change up">+6.12% 🟢</span>
+                <span class="ticker-vol">Vol: $4.5B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('AAPL', null)">
+                <span class="ticker-symbol">AAPL</span>
+                <span class="ticker-price">$224.50</span>
+                <span class="ticker-change down">-0.42% 🔴</span>
+                <span class="ticker-vol">Vol: $14.8B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('005930.KS', null)">
+                <span class="ticker-symbol">005930.KS</span>
+                <span class="ticker-price">₩78,500</span>
+                <span class="ticker-change up">+1.16% 🟢</span>
+                <span class="ticker-vol">Vol: ₩1.2T</span>
+            </div>
+            <!-- Duplicate for Seamless Infinite Loop -->
+            <div class="ticker-item" onclick="switchSymbol('BTCUSDT', null)">
+                <span class="ticker-symbol">BTC/USDT</span>
+                <span class="ticker-price">$64,320.50</span>
+                <span class="ticker-change up">+4.85% 🟢</span>
+                <span class="ticker-vol">Vol: $32.4B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('ETHUSDT', null)">
+                <span class="ticker-symbol">ETH/USDT</span>
+                <span class="ticker-price">$3,492.10</span>
+                <span class="ticker-change up">+3.18% 🟢</span>
+                <span class="ticker-vol">Vol: $18.2B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('SOLUSDT', null)">
+                <span class="ticker-symbol">SOL/USDT</span>
+                <span class="ticker-price">$154.60</span>
+                <span class="ticker-change up">+8.92% 🚀</span>
+                <span class="ticker-vol">Vol: $9.4B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('NVDA', null)">
+                <span class="ticker-symbol">NVDA</span>
+                <span class="ticker-price">$128.80</span>
+                <span class="ticker-change up">+2.45% 🟢</span>
+                <span class="ticker-vol">Vol: $28.1B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('DOGEUSDT', null)">
+                <span class="ticker-symbol">DOGE/USDT</span>
+                <span class="ticker-price">$0.142</span>
+                <span class="ticker-change up">+6.12% 🟢</span>
+                <span class="ticker-vol">Vol: $4.5B</span>
+            </div>
+            <div class="ticker-item" onclick="switchSymbol('AAPL', null)">
+                <span class="ticker-symbol">AAPL</span>
+                <span class="ticker-price">$224.50</span>
+                <span class="ticker-change down">-0.42% 🔴</span>
+                <span class="ticker-vol">Vol: $14.8B</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Workspace Container -->
     <main>
-        <!-- ── Hero NLP AI Search Section (Clean Crisp Light) ── -->
+        <!-- ── [신규] 당일 실시간 화제 이슈 & 속보 슬랙 롤링 바 ── -->
+        <div class="breaking-news-bar">
+            <div class="news-badge-pulse">
+                <div class="pulse-dot"></div>
+                <span>당일 화제 이슈</span>
+            </div>
+            <div id="breaking-news-text" class="news-slide-content">
+                ⚡ [속보] 미국 연준(Fed) 금리 동결 시사 및 비트코인 현물 ETF 4.8억 달러 대규모 순유입 지속
+            </div>
+            <span class="mono" style="font-size: 11px; color: var(--text-subtle); white-space: nowrap;">실시간 갱신 중</span>
+        </div>
+
+        <!-- ── Hero NLP AI Search Section ── -->
         <section class="hero-prompt-section">
             <h1 class="hero-title">
                 AI 기반 <span class="gradient-text">하이브리드 금융 인텔리전스</span>
@@ -1386,6 +1623,30 @@
         let authMode = 'login';
         let currentUserBalance = 50.0;
 
+        // ── [신규] 실시간 당일 화제 뉴스 롤링 로직 ──
+        const hotTrendingNews = [
+            "⚡ [속보] 미국 연준(Fed) 금리 동결 시사 및 비트코인 현물 ETF 4.8억 달러 대규모 순유입 지속",
+            "🚀 [화제] 솔라나(SOL) DEX 24H 거래량 사상 최대치 돌파 및 AI 융합 디파이 모멘텀 지속 (+8.9%)",
+            "💎 [거시] 엔비디아(NVDA) 차세대 AI 가속기 수요 폭증으로 AI/웹3 데이터 인프라 섹터 전반 랠리",
+            "📊 [온체인] 글로벌 고래 지갑 8,500 BTC 외부 콜드월렛 이체 완료 (거래소 매도 물량 잠김 현상)",
+            "🌐 [규제] 주요국 암호화폐 거래소 규제 가이드라인 명확화에 따른 기관 투자자 신뢰 회복세"
+        ];
+        let currentNewsIndex = 0;
+
+        function startNewsRotator() {
+            setInterval(() => {
+                currentNewsIndex = (currentNewsIndex + 1) % hotTrendingNews.length;
+                const el = document.getElementById('breaking-news-text');
+                if (el) {
+                    el.style.opacity = 0;
+                    setTimeout(() => {
+                        el.innerText = hotTrendingNews[currentNewsIndex];
+                        el.style.opacity = 1;
+                    }, 300);
+                }
+            }, 4500);
+        }
+
         function initChart() {
             const container = document.getElementById('chart-canvas');
             container.innerHTML = '';
@@ -1458,6 +1719,8 @@
             const upper = input.toUpperCase();
             if (upper.includes('ETH') || upper.includes('이더')) {
                 currentSymbol = 'ETHUSDT';
+            } else if (upper.includes('SOL') || upper.includes('솔라나')) {
+                currentSymbol = 'SOLUSDT';
             } else if (upper.includes('NVDA') || upper.includes('엔비디아')) {
                 currentSymbol = 'NVDA';
             } else if (upper.includes('AAPL') || upper.includes('애플')) {
@@ -2306,6 +2569,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             initChart();
             refreshTerminal();
+            startNewsRotator();
         });
     </script>
 </body>
