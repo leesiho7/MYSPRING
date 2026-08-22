@@ -33,12 +33,6 @@ public class AiConfig {
     @Value("${spring.ai.vectorstore.chroma.collection-name:financial-market-news}")
     private String collectionName;
 
-    @Bean
-    @Primary
-    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(EmbeddingModel.class)
-    public EmbeddingModel defaultEmbeddingModel() {
-        return createFallbackEmbeddingModel();
-    }
 
     private EmbeddingModel createFallbackEmbeddingModel() {
         return new EmbeddingModel() {
