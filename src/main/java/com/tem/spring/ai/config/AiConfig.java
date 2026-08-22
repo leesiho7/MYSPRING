@@ -66,12 +66,9 @@ public class AiConfig {
     @Primary
     public VectorStore vectorStore(ObjectProvider<EmbeddingModel> embeddingModelProvider, ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
         String chromaUrl = chromaHost + ":" + chromaPort;
-        EmbeddingModel embeddingModel = embeddingModelProvider.getIfAvailable(this::createFallbackEmbeddingModel);
+        EmbeddingModel embeddingModel = embeddingModelProvider.orderedStream().findFirst().orElseGet(this::createFallbackEmbeddingModel);
         try {
-            RestClient.Builder builder = restClientBuilderProvider.getIfAvailable(RestClient::builder);
-            if (builder == null) {
-                builder = RestClient.builder();
-            }
+            RestClient.Builder builder = restClientBuilderProvider.orderedStream().findFirst().orElseGet(RestClient::builder);
             log.info("[AiConfig] Initializing ChromaVectorStore connection to: {}", chromaUrl);
             ChromaApi chromaApi = new ChromaApi(chromaUrl, builder);
             ChromaVectorStore chromaVectorStore = new ChromaVectorStore(embeddingModel, chromaApi, collectionName, false);
