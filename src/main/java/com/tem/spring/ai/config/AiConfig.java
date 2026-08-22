@@ -64,16 +64,20 @@ public class AiConfig {
 
     @Bean
     @Primary
-    public VectorStore vectorStore(EmbeddingModel embeddingModel, RestClient.Builder restClientBuilder) {
+    public VectorStore vectorStore(EmbeddingModel embeddingModel, ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
         String chromaUrl = chromaHost + ":" + chromaPort;
         try {
+            RestClient.Builder builder = restClientBuilderProvider.getIfAvailable(RestClient::builder);
+            if (builder == null) {
+                builder = RestClient.builder();
+            }
             log.info("[AiConfig] Initializing ChromaVectorStore connection to: {}", chromaUrl);
-            ChromaApi chromaApi = new ChromaApi(chromaUrl, restClientBuilder);
-            ChromaVectorStore chromaVectorStore = new ChromaVectorStore(embeddingModel, chromaApi, collectionName, true);
-            log.info("[AiConfig] ChromaVectorStore connected successfully to collection: {}", collectionName);
+            ChromaApi chromaApi = new ChromaApi(chromaUrl, builder);
+            ChromaVectorStore chromaVectorStore = new ChromaVectorStore(embeddingModel, chromaApi, collectionName, false);
+            log.info("[AiConfig] ChromaVectorStore initialized (lazy schema check)");
             return chromaVectorStore;
-        } catch (Exception e) {
-            log.warn("[AiConfig] ChromaDB connection failed ({}), falling back to in-memory SimpleVectorStore", e.getMessage());
+        } catch (Throwable e) {
+            log.warn("[AiConfig] ChromaDB unavailable ({}), using in-memory SimpleVectorStore fallback", e.getMessage());
             return new SimpleVectorStore(embeddingModel);
         }
     }
