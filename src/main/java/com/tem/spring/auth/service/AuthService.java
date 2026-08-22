@@ -69,6 +69,7 @@ public class AuthService {
                 .nickname(savedUser.getNickname())
                 .walletAddress(savedUser.getWalletAddress())
                 .reputationScore(savedUser.getReputationScore())
+                .tokenBalance(savedUser.getTokenBalance())
                 .role(savedUser.getRole())
                 .accessToken(token)
                 .build();
@@ -106,6 +107,58 @@ public class AuthService {
                 .nickname(user.getNickname())
                 .walletAddress(user.getWalletAddress())
                 .reputationScore(user.getReputationScore())
+                .tokenBalance(user.getTokenBalance())
+                .role(user.getRole())
+                .accessToken(token)
+                .build();
+    }
+
+    @Transactional
+    public AuthResponse socialLogin(com.tem.spring.auth.dto.SocialLoginRequest request) {
+        String provider = request.getProvider().toUpperCase();
+        String providerId = request.getProviderId();
+        String socialUsername = provider + "_" + providerId;
+
+        log.info("[AuthService] Processing 1-Click Social Login: Provider={}, ProviderId={}", provider, providerId);
+
+        UserEntity user = userRepository.findByUsername(socialUsername)
+                .orElseGet(() -> {
+                    String baseNickname = request.getNickname() != null && !request.getNickname().isBlank()
+                            ? request.getNickname()
+                            : provider + "_투자자_" + (providerId.length() > 4 ? providerId.substring(providerId.length() - 4) : providerId);
+
+                    String finalNickname = baseNickname;
+                    int suffix = 1;
+                    while (userRepository.existsByNickname(finalNickname)) {
+                        finalNickname = baseNickname + "_" + suffix++;
+                    }
+
+                    UserEntity newUser = UserEntity.builder()
+                            .username(socialUsername)
+                            .password("N/A_OAUTH2_SECURED")
+                            .nickname(finalNickname)
+                            .walletAddress(request.getWalletAddress())
+                            .tokenBalance(50.0)
+                            .reputationScore(100)
+                            .role("ROLE_USER")
+                            .createdAt(LocalDateTime.now())
+                            .build();
+
+                    log.info("[AuthService] Auto-registering new user from {} OAuth: Nickname={}", provider, finalNickname);
+                    return userRepository.save(newUser);
+                });
+
+        String token = generateToken(user);
+
+        return AuthResponse.builder()
+                .success(true)
+                .message(provider + " 간편 로그인 성공")
+                .userId(user.getId())
+                .username(user.getUsername())
+                .nickname(user.getNickname())
+                .walletAddress(user.getWalletAddress())
+                .reputationScore(user.getReputationScore())
+                .tokenBalance(user.getTokenBalance())
                 .role(user.getRole())
                 .accessToken(token)
                 .build();

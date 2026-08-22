@@ -17,6 +17,7 @@ public class AuthResponse {
     private String nickname;
     private String walletAddress;
     private int reputationScore;
+    private double tokenBalance;
     private String role;
     private String accessToken;
 }

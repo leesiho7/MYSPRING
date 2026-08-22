@@ -37,4 +37,14 @@ public class AuthController {
         }
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * 3. 네이버, 카카오, 구글, 애플, 메타마스크 소셜 원클릭 로그인 API
+     * 비밀번호/개인정보 입력 없이 즉시 안전 인증 및 자동 계정 생성
+     */
+    @PostMapping("/social-login")
+    public ResponseEntity<AuthResponse> socialLogin(@Valid @RequestBody com.tem.spring.auth.dto.SocialLoginRequest request) {
+        AuthResponse response = authService.socialLogin(request);
+        return ResponseEntity.ok(response);
+    }
 }
