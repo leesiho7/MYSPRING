@@ -69,13 +69,15 @@ public class AiConfig {
         EmbeddingModel embeddingModel = embeddingModelProvider.orderedStream().findFirst().orElseGet(this::createFallbackEmbeddingModel);
         try {
             RestClient.Builder builder = restClientBuilderProvider.orderedStream().findFirst().orElseGet(RestClient::builder);
-            log.info("[AiConfig] Initializing ChromaVectorStore connection to: {}", chromaUrl);
+            // Quick probe to verify if ChromaDB server is actively running on port 8000
+            RestClient probeClient = builder.baseUrl(chromaUrl).build();
+            probeClient.get().uri("/api/v1/heartbeat").retrieve().toBodilessEntity();
+
+            log.info("[AiConfig] ChromaDB is ONLINE at {}. Connecting ChromaVectorStore...", chromaUrl);
             ChromaApi chromaApi = new ChromaApi(chromaUrl, builder);
-            ChromaVectorStore chromaVectorStore = new ChromaVectorStore(embeddingModel, chromaApi, collectionName, false);
-            log.info("[AiConfig] ChromaVectorStore initialized (lazy schema check)");
-            return chromaVectorStore;
+            return new ChromaVectorStore(embeddingModel, chromaApi, collectionName, true);
         } catch (Throwable e) {
-            log.warn("[AiConfig] ChromaDB unavailable ({}), using in-memory SimpleVectorStore fallback", e.getMessage());
+            log.info("[AiConfig] ChromaDB (localhost:8000) is OFFLINE. Seamlessly operating with in-memory SimpleVectorStore (RAM-based, zero-config).");
             return new SimpleVectorStore(embeddingModel);
         }
     }
