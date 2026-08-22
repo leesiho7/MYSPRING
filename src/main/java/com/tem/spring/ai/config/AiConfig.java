@@ -34,8 +34,14 @@ public class AiConfig {
     private String collectionName;
 
     @Bean
-    public EmbeddingModel defaultEmbeddingModel(ObjectProvider<EmbeddingModel> embeddingModelProvider) {
-        return embeddingModelProvider.getIfAvailable(() -> new EmbeddingModel() {
+    @Primary
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(EmbeddingModel.class)
+    public EmbeddingModel defaultEmbeddingModel() {
+        return createFallbackEmbeddingModel();
+    }
+
+    private EmbeddingModel createFallbackEmbeddingModel() {
+        return new EmbeddingModel() {
             @Override
             public org.springframework.ai.embedding.EmbeddingResponse call(org.springframework.ai.embedding.EmbeddingRequest request) {
                 List<org.springframework.ai.embedding.Embedding> embeddings = request.getInstructions().stream()
@@ -59,13 +65,14 @@ public class AiConfig {
                 }
                 return vec;
             }
-        });
+        };
     }
 
     @Bean
     @Primary
-    public VectorStore vectorStore(EmbeddingModel embeddingModel, ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
+    public VectorStore vectorStore(ObjectProvider<EmbeddingModel> embeddingModelProvider, ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
         String chromaUrl = chromaHost + ":" + chromaPort;
+        EmbeddingModel embeddingModel = embeddingModelProvider.getIfAvailable(this::createFallbackEmbeddingModel);
         try {
             RestClient.Builder builder = restClientBuilderProvider.getIfAvailable(RestClient::builder);
             if (builder == null) {
