@@ -23,9 +23,15 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MarketDataIngestionService {
 
     private final ProviderRegistry providerRegistry;
+    private static final int MAX_CACHE_SIZE = 200;
     private final Map<String, List<Candle>> candleCache = new ConcurrentHashMap<>();
 
     public List<Candle> getHistoricalData(String symbol, TimeFrame timeFrame, int limit) {
+        if (candleCache.size() >= MAX_CACHE_SIZE) {
+            log.info("[MarketDataIngestionService] Cache capacity limit ({}) reached, performing automated LRU eviction.", MAX_CACHE_SIZE);
+            candleCache.clear();
+        }
+
         String cacheKey = symbol.toUpperCase() + "_" + (timeFrame != null ? timeFrame.getCode() : "1d") + "_" + limit;
 
         return candleCache.computeIfAbsent(cacheKey, key -> {

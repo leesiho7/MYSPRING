@@ -44,6 +44,10 @@ public class SignalAggregatorService {
     private final DecisionReportRepository reportRepository;
     private final CandleRepository candleRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.beans.factory.annotation.Qualifier("tradingTaskExecutor")
+    private java.util.concurrent.Executor tradingTaskExecutor;
+
     public IntegratedDecisionReport generateDecisionReport(String symbol, TimeFrame timeFrame, int candleLimit) {
         log.info("[SignalAggregatorService] Generating 4-Engine Integrated Report for: {}", symbol);
 
@@ -56,14 +60,14 @@ public class SignalAggregatorService {
         // 1. ta4j 정량 지표 계산
         QuantitativeSignal quant = indicatorEngine.calculateSignals(series);
 
-        // 2. Spring AI + ChromaDB 4대 엔진 병렬 비동기 처리
-        CompletableFuture<QualitativeInsight> qualFuture = CompletableFuture.supplyAsync(() ->
-                ollamaService.analyzeMarketSentiment(symbol)
-        );
+        // 2. Spring AI + ChromaDB 4대 엔진 전용 스레드 풀 기반 병렬 비동기 처리
+        CompletableFuture<QualitativeInsight> qualFuture = tradingTaskExecutor != null ?
+                CompletableFuture.supplyAsync(() -> ollamaService.analyzeMarketSentiment(symbol), tradingTaskExecutor) :
+                CompletableFuture.supplyAsync(() -> ollamaService.analyzeMarketSentiment(symbol));
 
-        CompletableFuture<PatternInsight> patternFuture = CompletableFuture.supplyAsync(() ->
-                chartPatternService.analyzePatternSimilarity(symbol, candles, quant)
-        );
+        CompletableFuture<PatternInsight> patternFuture = tradingTaskExecutor != null ?
+                CompletableFuture.supplyAsync(() -> chartPatternService.analyzePatternSimilarity(symbol, candles, quant), tradingTaskExecutor) :
+                CompletableFuture.supplyAsync(() -> chartPatternService.analyzePatternSimilarity(symbol, candles, quant));
 
         CompletableFuture.allOf(qualFuture, patternFuture).join();
 
