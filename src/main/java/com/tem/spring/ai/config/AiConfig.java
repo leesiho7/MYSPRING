@@ -1,9 +1,7 @@
 package com.tem.spring.ai.config;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chroma.ChromaApi;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.vectorstore.ChromaVectorStore;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
@@ -12,27 +10,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
 
 /**
- * ChromaDB 및 로컬 LLM 연동 설정
- * 로컬 ChromaDB(localhost:8000) 구동 시 실제 ChromaVectorStore 연결,
- * ChromaDB 미구동 시에는 인메모리 SimpleVectorStore로 안전하게 자동 Fallback
+ * 인메모리 SimpleVectorStore 및 BGE-M3 로컬 임베딩 연동 설정
+ * 불필요한 외부 ChromaDB 네트워크 연결 시도를 완전히 차단하고 고성능 인메모리 벡터 검색을 수행
  */
 @Slf4j
 @Configuration
 public class AiConfig {
-
-    @Value("${spring.ai.vectorstore.chroma.client.host:http://localhost}")
-    private String chromaHost;
-
-    @Value("${spring.ai.vectorstore.chroma.client.port:8000}")
-    private int chromaPort;
-
-    @Value("${spring.ai.vectorstore.chroma.collection-name:financial-market-news}")
-    private String collectionName;
-
 
     @Value("${spring.ai.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
@@ -42,11 +30,11 @@ public class AiConfig {
 
     @Bean
     @Primary
-    public EmbeddingModel embeddingModel(ObjectProvider<org.springframework.web.client.RestClient.Builder> restClientBuilderProvider,
-                                         ObjectProvider<org.springframework.web.reactive.function.client.WebClient.Builder> webClientBuilderProvider) {
+    public EmbeddingModel embeddingModel(ObjectProvider<RestClient.Builder> restClientBuilderProvider,
+                                         ObjectProvider<WebClient.Builder> webClientBuilderProvider) {
         try {
-            org.springframework.web.client.RestClient.Builder restBuilder = restClientBuilderProvider.orderedStream().findFirst().orElseGet(org.springframework.web.client.RestClient::builder);
-            org.springframework.web.reactive.function.client.WebClient.Builder webBuilder = webClientBuilderProvider.orderedStream().findFirst().orElseGet(org.springframework.web.reactive.function.client.WebClient::builder);
+            RestClient.Builder restBuilder = restClientBuilderProvider.orderedStream().findFirst().orElseGet(RestClient::builder);
+            WebClient.Builder webBuilder = webClientBuilderProvider.orderedStream().findFirst().orElseGet(WebClient::builder);
             org.springframework.ai.ollama.api.OllamaApi ollamaApi = new org.springframework.ai.ollama.api.OllamaApi(ollamaBaseUrl, restBuilder, webBuilder);
             org.springframework.ai.ollama.api.OllamaOptions options = org.springframework.ai.ollama.api.OllamaOptions.builder()
                     .withModel(embeddingModelName)
@@ -89,20 +77,8 @@ public class AiConfig {
 
     @Bean
     @Primary
-    public VectorStore vectorStore(EmbeddingModel embeddingModel, ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
-        String chromaUrl = chromaHost + ":" + chromaPort;
-        try {
-            RestClient.Builder builder = restClientBuilderProvider.orderedStream().findFirst().orElseGet(RestClient::builder);
-            // Quick probe to verify if ChromaDB server is actively running on port 8000
-            RestClient probeClient = builder.baseUrl(chromaUrl).build();
-            probeClient.get().uri("/api/v1/heartbeat").retrieve().toBodilessEntity();
-
-            log.info("[AiConfig] ChromaDB is ONLINE at {}. Connecting ChromaVectorStore with BGE-M3 (1024-dim)...", chromaUrl);
-            ChromaApi chromaApi = new ChromaApi(chromaUrl, builder);
-            return new ChromaVectorStore(embeddingModel, chromaApi, collectionName, true);
-        } catch (Throwable e) {
-            log.info("[AiConfig] ChromaDB (localhost:8000) is OFFLINE. Operating with in-memory SimpleVectorStore (RAM-based, BGE-M3 standard).");
-            return new SimpleVectorStore(embeddingModel);
-        }
+    public VectorStore vectorStore(EmbeddingModel embeddingModel) {
+        log.info("[AiConfig] ✅ Initialized in-memory SimpleVectorStore (Zero-ChromaDB dependency)");
+        return new SimpleVectorStore(embeddingModel);
     }
 }
