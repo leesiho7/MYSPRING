@@ -121,4 +121,14 @@ public class TradingSystemController {
             @RequestBody com.tem.spring.ai.dto.AiResearchChatRequest request) {
         return ResponseEntity.ok(researchChatService.processResearchChat(request));
     }
+
+    /**
+     * 8. 간단한 Spring AI LLM 텍스트 생성 테스트 API
+     */
+    @GetMapping("/ai/generate")
+    public ResponseEntity<java.util.Map<String, String>> generateText(
+            @RequestParam(defaultValue = "Hello") String message) {
+        String generation = researchChatService.generateSimpleResponse(message);
+        return ResponseEntity.ok(java.util.Map.of("message", message, "generation", generation));
+    }
 }

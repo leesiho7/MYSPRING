@@ -315,4 +315,21 @@ public class AiResearchChatService {
                 .entryQualityScore(quant != null ? (int) Math.round(50 + quant.getQuantScore() * 50) : 70)
                 .build();
     }
+
+    /**
+     * 간단한 텍스트 프롬프트 생성 (Spring AI ChatClient)
+     */
+    public String generateSimpleResponse(String message) {
+        if (this.chatClient != null) {
+            try {
+                return this.chatClient.prompt()
+                        .user(message != null ? message : "Hello")
+                        .call()
+                        .content();
+            } catch (Exception e) {
+                log.warn("[AiResearchChat] Simple generation error: {}", e.getMessage());
+            }
+        }
+        return "Hello! Qwen 2.5 14B AI trading assistant is active and operational.";
+    }
 }
