@@ -128,12 +128,12 @@ public class AiResearchChatService {
                 [최우선 작성 원칙]
                 - 반드시 한국어 존댓말로만 작성하십시오.
                 - 1~2문장의 단답형 요약을 절대 금지합니다. 기관 투자자 및 전문 트레이더에게 보고하는 **최소 500자 이상의 고품격 정밀 퀀트 메모랜덤**을 작성하십시오.
-                - 아래 [실시간 시장 데이터]에 명시된 실제 수치(현재가, RSI, SMA20/50, 볼린저밴드, 퀀트 점수)와 [BGE-M3 뉴스 문맥]을 본문에 반드시 직접 인용하여 심층 분석하십시오.
+                - 아래 [실시간 시장 데이터]에 명시된 실제 수치(현재가, RSI, SMA20/50, 볼린저밴드, 퀀트 점수)와 [Bright Data & RAG 실시간 뉴스/공시]에 명시된 **출처(Source) 및 수집 시각(Timestamp)**을 본문에 반드시 직접 인용하여 분석의 시의성과 팩트체크 신뢰도를 입증하십시오.
 
                 [분석 대상 자산]: {{SYMBOL}}
                 [투자 의도]: {{INTENT}} / [운용 기간]: {{HORIZON}} / [가용 예산]: {{AMOUNT}}
 
-                [실시간 시장 데이터 — 반드시 아래 수치를 인용하여 서술할 것]
+                [실시간 시장 데이터 & 크롤링 뉴스 — 반드시 아래 수치 및 출처/수집시각을 인용하여 서술할 것]
                 {{MARKET_CONTEXT}}
 
                 [반드시 준수해야 할 마크다운 출력 템플릿]
@@ -224,7 +224,7 @@ public class AiResearchChatService {
         }
 
         if (news != null && !news.isEmpty()) {
-            ctx.append("- 최신 뉴스 헤드라인:").append(System.lineSeparator());
+            ctx.append("- [Bright Data 실시간 뉴스/공시 & RAG 맥락 (출처 및 실시간 수집시각)]:").append(System.lineSeparator());
             for (String n : news) {
                 ctx.append("    • ").append(n).append(System.lineSeparator());
             }

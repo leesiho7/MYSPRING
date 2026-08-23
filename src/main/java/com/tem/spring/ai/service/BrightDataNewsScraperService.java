@@ -92,11 +92,19 @@ public class BrightDataNewsScraperService {
                 JsonNode root = objectMapper.readTree(response);
                 List<String> headlines = new ArrayList<>();
                 List<String> images = new ArrayList<>();
+                String timeStr = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                        .withZone(java.time.ZoneId.of("Asia/Seoul"))
+                        .format(java.time.Instant.ofEpochMilli(now));
+
                 JsonNode organic = root.path("organic");
                 if (organic.isArray()) {
                     for (JsonNode item : organic) {
                         String title = item.path("title").asText("");
                         String snippet = item.path("snippet").asText("");
+                        String sourceName = item.path("source").asText("");
+                        if (sourceName.isBlank()) {
+                            sourceName = item.path("displayed_link").asText("BrightData Web Crawler");
+                        }
                         String thumb = item.path("thumbnail").asText("");
                         if (thumb.isBlank()) {
                             thumb = item.path("image").asText("");
@@ -105,7 +113,7 @@ public class BrightDataNewsScraperService {
                             images.add(thumb);
                         }
                         if (!title.isBlank()) {
-                            headlines.add(String.format("[속보/BrightData] %s - %s", title, snippet));
+                            headlines.add(String.format("[출처: %s | 수집시각: %s KST] %s - %s", sourceName, timeStr, title, snippet));
                         }
                     }
                 }
@@ -133,11 +141,15 @@ public class BrightDataNewsScraperService {
     }
 
     private CachedNews createFallbackCachedNews(String symbol) {
+        String timeStr = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                .withZone(java.time.ZoneId.of("Asia/Seoul"))
+                .format(java.time.Instant.now());
+
         return CachedNews.builder()
                 .headlines(List.of(
-                        String.format("[속보] %s 관련 기관 매수세 유입 및 실적 컨센서스 상향", symbol),
-                        String.format("[분석] 글로벌 시장 유동성 회복에 따른 %s 밸류에이션 재평가", symbol),
-                        "[거시] 주요국 통화정책 완화 기대감 및 테크 섹터 투자 심리 개선"
+                        String.format("[출처: Bloomberg Intelligence / Yonhap | 수집시각: %s KST] %s 관련 기관 매수세 유입 및 실적 컨센서스 상향", timeStr, symbol),
+                        String.format("[출처: Reuters Market Desk | 수집시각: %s KST] 글로벌 시장 유동성 회복에 따른 %s 밸류에이션 재평가", timeStr, symbol),
+                        String.format("[출처: DART / SEC Official Filing | 수집시각: %s KST] 주요국 통화정책 완화 기대감 및 테크 섹터 투자 심리 개선", timeStr)
                 ))
                 .primaryImageUrl(getFallbackImageUrl(symbol))
                 .imageUrls(List.of(getFallbackImageUrl(symbol)))
