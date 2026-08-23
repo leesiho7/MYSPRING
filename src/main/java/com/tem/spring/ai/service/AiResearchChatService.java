@@ -47,8 +47,25 @@ public class AiResearchChatService {
     }
 
     public AiResearchChatResponse processResearchChat(AiResearchChatRequest req) {
-        String symbol = (req.getSymbol() != null && !req.getSymbol().isBlank()) ? req.getSymbol().toUpperCase() : "BTCUSDT";
         String prompt = req.getPrompt() != null ? req.getPrompt().trim() : "";
+        String symbol = (req.getSymbol() != null && !req.getSymbol().isBlank()) ? req.getSymbol().toUpperCase() : "BTCUSDT";
+        
+        // Auto-extract coin from natural language prompt if present
+        String lowerP = prompt.toLowerCase();
+        if (lowerP.contains("수이") || lowerP.contains("sui")) {
+            symbol = "SUIUSDT";
+        } else if (lowerP.contains("이더") || lowerP.contains("eth")) {
+            symbol = "ETHUSDT";
+        } else if (lowerP.contains("솔라나") || lowerP.contains("sol")) {
+            symbol = "SOLUSDT";
+        } else if (lowerP.contains("엔비디아") || lowerP.contains("nvda")) {
+            symbol = "NVDA";
+        } else if (lowerP.contains("삼성") || lowerP.contains("samsung")) {
+            symbol = "005930.KS";
+        } else if (lowerP.contains("비트") || lowerP.contains("btc")) {
+            symbol = "BTCUSDT";
+        }
+        
         String convId = req.getConversationId() != null ? req.getConversationId() : UUID.randomUUID().toString();
 
         log.info("[AiResearchChat] Processing institutional query for {} (ConvID: {}): '{}'", symbol, convId, prompt);
