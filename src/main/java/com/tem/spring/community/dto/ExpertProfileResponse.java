@@ -18,5 +18,6 @@ public class ExpertProfileResponse {
     private String role;
     private long followerCount;
     private long followingCount;
+    private long postCount;
     private boolean isFollowedByMe;
 }
