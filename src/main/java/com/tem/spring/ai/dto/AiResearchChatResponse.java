@@ -20,6 +20,11 @@ public class AiResearchChatResponse {
     private String invalidationLevel;
     private double confidenceScore;
     private int entryQualityScore;
+    private double quantContribution;
+    private double newsContribution;
+    private String scoreRationale;
+    private String citedHeadlineWithTimestamp;
+    private String divergenceWarning;
 
     @JsonProperty("answer")
     public String getAnswer() {

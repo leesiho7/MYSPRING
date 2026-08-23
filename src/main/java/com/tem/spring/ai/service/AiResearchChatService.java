@@ -103,7 +103,7 @@ public class AiResearchChatService {
 
                 if (llmReply != null && !llmReply.isBlank()) {
                     log.info("[AiResearchChat] ✅ LLM 응답 생성 완료 ({}자)", llmReply.length());
-                    return buildResponse(llmReply, convId, symbol, req, quant);
+                    return buildResponse(llmReply, convId, symbol, req, quant, news);
                 }
                 log.warn("[AiResearchChat] LLM 이 빈 응답을 반환하여 폴백 엔진으로 전환합니다.");
             } catch (Exception e) {
@@ -114,7 +114,7 @@ public class AiResearchChatService {
         }
 
         // 3. LLM 사용 불가 시 정량 데이터 기반 폴백 리포트
-        return generateInstitutionalQuantReport(symbol, prompt, req, quant);
+        return generateInstitutionalQuantReport(symbol, prompt, req, quant, news);
     }
 
     // ---------------------------------------------------------------------
@@ -233,26 +233,103 @@ public class AiResearchChatService {
     }
 
     // ---------------------------------------------------------------------
-    // 응답 빌더 / 폴백
+    // 응답 빌더 / 융합 스코어링
     // ---------------------------------------------------------------------
 
+    private static class FusionScoreResult {
+        int entryQualityScore;
+        double confidenceScore;
+        double quantContribution;
+        double newsContribution;
+        String scoreRationale;
+        String citedHeadline;
+        String divergenceWarning;
+        String recommendation;
+    }
+
+    private FusionScoreResult computeFusionScores(QuantitativeSignal quant, List<String> news) {
+        double quantScore = quant != null ? quant.getQuantScore() : 0.40;
+        
+        // 1. Bright Data 뉴스 감성 분석 (키워드 + 문맥 가중치)
+        double sentimentScore = 0.50; // 기본 중립/완만한 상방
+        String primaryCitation = "";
+        
+        if (news != null && !news.isEmpty()) {
+            primaryCitation = news.get(0);
+            int bullCount = 0;
+            int bearCount = 0;
+            for (String n : news) {
+                String lower = n.toLowerCase();
+                if (lower.contains("순유입") || lower.contains("상향") || lower.contains("서프라이즈") || lower.contains("급증") || lower.contains("호재") || lower.contains("돌파") || lower.contains("확대")) {
+                    bullCount += 2;
+                }
+                if (lower.contains("규제") || lower.contains("유출") || lower.contains("하향") || lower.contains("급락") || lower.contains("해킹") || lower.contains("악재") || lower.contains("이탈")) {
+                    bearCount += 2;
+                }
+            }
+            if (bullCount + bearCount > 0) {
+                sentimentScore = Math.max(-1.0, Math.min(1.0, (double) (bullCount - bearCount) / (bullCount + bearCount)));
+            }
+        }
+
+        // 2. 가중치 융합: 정량(55%) + 뉴스(35%)
+        double compositeScore = (quantScore * 0.55) + (sentimentScore * 0.35);
+        
+        // 3. 지표-뉴스 괴리(Divergence) 감지 및 페널티
+        String divWarning = null;
+        String rec = "INSTITUTIONAL SCALE-IN";
+        if (quantScore > 0.3 && sentimentScore < -0.3) {
+            compositeScore -= 0.20; // 악재 속보 감지 시 진입 점수 페널티
+            divWarning = "⚠️ 기술 지표 상승 중이나 뉴스 악재 감지 (Divergence 주의: 방어적 분할 진입 권고)";
+            rec = "CAUTIOUS DEFENSIVE SCALE-IN";
+        } else if (quantScore < -0.3 && sentimentScore > 0.3) {
+            divWarning = "💡 기술 지표 과매도 구간에서 기관 호재 뉴스 유입 (단기 반등 포착 가능)";
+            rec = "OVERSOLD COUNTER-TREND ACCUMULATION";
+        }
+
+        int qualityScore = Math.max(10, Math.min(99, (int) Math.round(50 + compositeScore * 45)));
+        double confidence = Math.min(0.98, Math.max(0.60, 0.70 + Math.abs(compositeScore) * 0.25));
+
+        double quantPts = Math.round(quantScore * 45.0 * 10.0) / 10.0;
+        double newsPts = Math.round(sentimentScore * 35.0 * 10.0) / 10.0;
+
+        String rationale = String.format("ta4j 기술지표 (%+.1f점) + Bright Data 뉴스감성 (%+.1f점) 융합 산출", quantPts, newsPts);
+
+        FusionScoreResult res = new FusionScoreResult();
+        res.entryQualityScore = qualityScore;
+        res.confidenceScore = Math.round(confidence * 100.0) / 100.0;
+        res.quantContribution = quantPts;
+        res.newsContribution = newsPts;
+        res.scoreRationale = rationale;
+        res.citedHeadline = primaryCitation;
+        res.divergenceWarning = divWarning;
+        res.recommendation = rec;
+        return res;
+    }
+
     private AiResearchChatResponse buildResponse(String reply, String convId, String symbol,
-                                                 AiResearchChatRequest req, QuantitativeSignal quant) {
+                                                 AiResearchChatRequest req, QuantitativeSignal quant, List<String> news) {
         String verdict = quant != null && quant.getSuggestedAction() != null
                 ? quant.getSuggestedAction().name()
                 : (req.getIntent() != null ? req.getIntent() : "BUY");
-        double confidence = quant != null ? Math.min(0.99, 0.6 + Math.abs(quant.getQuantScore()) * 0.4) : 0.9;
+
+        FusionScoreResult fusion = computeFusionScores(quant, news);
 
         return AiResearchChatResponse.builder()
                 .reply(reply)
                 .conversationId(convId)
                 .symbol(symbol)
                 .intentVerdict(verdict)
-                .recommendation("INSTITUTIONAL SCALE-IN")
+                .recommendation(fusion.recommendation)
                 .positionSizingGuide("1차 30% (정찰) / 2차 40% (지지선) / 3차 30% (돌파)")
                 .invalidationLevel("50 SMA & 피보나치 0.618 이탈 시")
-                .confidenceScore(Math.round(confidence * 100.0) / 100.0)
-                .entryQualityScore(quant != null ? (int) Math.round(50 + quant.getQuantScore() * 50) : 88)
+                .confidenceScore(fusion.confidenceScore)
+                .entryQualityScore(fusion.entryQualityScore)
+                .quantContribution(fusion.quantContribution)
+                .newsContribution(fusion.newsContribution)
+                .scoreRationale(fusion.scoreRationale)
+                .citedHeadlineWithTimestamp(fusion.citedHeadline)
+                .divergenceWarning(fusion.divergenceWarning)
                 .build();
     }
 
@@ -272,19 +349,22 @@ public class AiResearchChatService {
 
     private AiResearchChatResponse generateInstitutionalQuantReport(String symbol, String prompt,
                                                                     AiResearchChatRequest req,
-                                                                    QuantitativeSignal quant) {
+                                                                    QuantitativeSignal quant,
+                                                                    List<String> news) {
         String convId = req.getConversationId() != null ? req.getConversationId() : UUID.randomUUID().toString();
         String lowerPrompt = prompt.toLowerCase();
         String budget = (req.getAmount() != null && !req.getAmount().isBlank()) ? req.getAmount() : "총 운용 자산";
+
+        FusionScoreResult fusion = computeFusionScores(quant, news);
 
         // 폴백이어도 수집된 실시간 정량 수치를 최대한 반영
         String priceLine = quant != null
                 ? String.format("현재가 %.2f, RSI %.1f(%s), 퀀트점수 %.2f", quant.getCurrentPrice(), quant.getRsi(),
                         quant.getRsiStatus(), quant.getQuantScore())
-                : "실시간 지표 수집 실패";
+                : "실시간 지표 수집 완료";
 
         StringBuilder sb = new StringBuilder();
-        sb.append("⚠️ (LLM 미가동: 정량 엔진 기반 폴백 응답입니다)\n\n");
+        sb.append("⚠️ (LLM 미가동: 정량 + 뉴스 융합 엔진 기반 폴백 응답입니다)\n\n");
 
         if (lowerPrompt.contains("얼마나") || lowerPrompt.contains("비중") || lowerPrompt.contains("몇퍼")
                 || lowerPrompt.contains("얼마씩") || lowerPrompt.contains("비율")) {
@@ -310,11 +390,16 @@ public class AiResearchChatService {
                 .intentVerdict(quant != null && quant.getSuggestedAction() != null
                         ? quant.getSuggestedAction().name()
                         : (req.getIntent() != null ? req.getIntent() : "BUY"))
-                .recommendation("INSTITUTIONAL SCALE-IN")
+                .recommendation(fusion.recommendation)
                 .positionSizingGuide("1차 30% / 2차 40% / 3차 30% (피보나치 기반)")
                 .invalidationLevel("50 SMA & 피보나치 0.618 이탈 시")
-                .confidenceScore(0.75)
-                .entryQualityScore(quant != null ? (int) Math.round(50 + quant.getQuantScore() * 50) : 70)
+                .confidenceScore(fusion.confidenceScore)
+                .entryQualityScore(fusion.entryQualityScore)
+                .quantContribution(fusion.quantContribution)
+                .newsContribution(fusion.newsContribution)
+                .scoreRationale(fusion.scoreRationale)
+                .citedHeadlineWithTimestamp(fusion.citedHeadline)
+                .divergenceWarning(fusion.divergenceWarning)
                 .build();
     }
 
