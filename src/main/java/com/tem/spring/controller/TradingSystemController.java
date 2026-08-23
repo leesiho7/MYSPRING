@@ -29,6 +29,7 @@ public class TradingSystemController {
     private final BacktestingEngine backtestingEngine;
     private final OllamaMarketAgentService ollamaService;
     private final SignalAggregatorService aggregatorService;
+    private final com.tem.spring.ai.service.AiResearchChatService researchChatService;
 
     /**
      * 1. OpenBB 스타일 데이터 수집 조회 API
@@ -110,5 +111,14 @@ public class TradingSystemController {
             @RequestParam(defaultValue = "BTCUSDT") String symbol,
             @RequestParam(defaultValue = "10") int limit) {
         return ResponseEntity.ok(aggregatorService.getDecisionHistory(symbol, limit));
+    }
+
+    /**
+     * 7. 대화형 문맥 기억(Conversational Multi-Turn RAG) AI 리서치 질의응답 API
+     */
+    @PostMapping("/ai/research-chat")
+    public ResponseEntity<com.tem.spring.ai.dto.AiResearchChatResponse> processResearchChat(
+            @RequestBody com.tem.spring.ai.dto.AiResearchChatRequest request) {
+        return ResponseEntity.ok(researchChatService.processResearchChat(request));
     }
 }
