@@ -7,7 +7,7 @@ import com.tem.spring.core.model.QualitativeInsight;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -23,17 +23,27 @@ public class OllamaMarketAgentService {
     private final FinancialNewsRagService ragService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public OllamaMarketAgentService(@Autowired(required = false) ChatModel chatModel,
-                                    @Autowired(required = false) ChatClient.Builder chatClientBuilder,
+    public OllamaMarketAgentService(ObjectProvider<ChatModel> chatModelProvider,
+                                    ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
                                     FinancialNewsRagService ragService) {
         this.ragService = ragService;
-        if (chatClientBuilder != null) {
-            this.chatClient = chatClientBuilder.build();
-        } else if (chatModel != null) {
-            this.chatClient = ChatClient.create(chatModel);
-        } else {
-            this.chatClient = null;
+        ChatClient client = null;
+        try {
+            ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
+            if (builder != null) {
+                client = builder.build();
+            }
+        } catch (Throwable ignored) {}
+
+        if (client == null) {
+            try {
+                ChatModel model = chatModelProvider.getIfAvailable();
+                if (model != null) {
+                    client = ChatClient.create(model);
+                }
+            } catch (Throwable ignored) {}
         }
+        this.chatClient = client;
     }
 
     public QualitativeInsight analyzeMarketSentiment(String symbol) {

@@ -17,12 +17,29 @@ import java.util.stream.Collectors;
 public class FinancialNewsRagService {
 
     private final VectorStore vectorStore;
+    private final com.tem.spring.ai.service.BrightDataNewsScraperService brightDataService;
 
-    public FinancialNewsRagService(@Autowired(required = false) VectorStore vectorStore) {
+    public FinancialNewsRagService(@Autowired(required = false) VectorStore vectorStore,
+                                  @Autowired(required = false) com.tem.spring.ai.service.BrightDataNewsScraperService brightDataService) {
         this.vectorStore = vectorStore;
+        this.brightDataService = brightDataService;
     }
 
     public List<String> retrieveRelevantNews(String symbol) {
+        // 1. Bright Data 실시간 웹 스크래핑 우선 시도
+        if (brightDataService != null) {
+            try {
+                List<String> liveNews = brightDataService.scrapeRealtimeFinancialNews(symbol);
+                if (liveNews != null && !liveNews.isEmpty()) {
+                    log.info("[FinancialNewsRagService] Retrieved {} live news articles via Bright Data for {}", liveNews.size(), symbol);
+                    return liveNews;
+                }
+            } catch (Exception e) {
+                log.warn("[FinancialNewsRagService] Bright Data scraping bypassed: {}", e.getMessage());
+            }
+        }
+
+        // 2. ChromaDB Vector Store 검색
         if (vectorStore != null) {
             try {
                 log.info("[FinancialNewsRagService] Querying ChromaDB for symbol: {}", symbol);
