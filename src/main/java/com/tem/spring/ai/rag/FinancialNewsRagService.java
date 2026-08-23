@@ -57,6 +57,13 @@ public class FinancialNewsRagService {
         return generateFallbackNews(symbol);
     }
 
+    public String getPrimaryImageUrl(String symbol) {
+        if (brightDataService != null) {
+            return brightDataService.getCachedOrFetchNews(symbol).getPrimaryImageUrl();
+        }
+        return "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=600&q=80";
+    }
+
     private List<String> generateFallbackNews(String symbol) {
         if (symbol.toUpperCase().contains("BTC") || symbol.toUpperCase().contains("USDT")) {
             return List.of(

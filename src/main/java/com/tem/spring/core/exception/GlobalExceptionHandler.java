@@ -50,6 +50,24 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(com.tem.spring.core.ratelimit.RateLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleRateLimitException(com.tem.spring.core.ratelimit.RateLimitExceededException ex) {
+        log.warn("[RateLimit] Rate limit exceeded: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                ErrorResponse.builder()
+                        .timestamp(LocalDateTime.now())
+                        .status(HttpStatus.TOO_MANY_REQUESTS.value())
+                        .error("Too Many Requests (Rate Limit Exceeded)")
+                        .message(ex.getMessage())
+                        .details(Map.of(
+                                "dailyLimit", String.valueOf(ex.getLimit()),
+                                "remainingQuota", String.valueOf(ex.getRemaining()),
+                                "resetSchedule", "매일 자정 00:00 KST"
+                        ))
+                        .build()
+        );
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
         log.warn("[Security] Invalid argument request: {}", ex.getMessage());

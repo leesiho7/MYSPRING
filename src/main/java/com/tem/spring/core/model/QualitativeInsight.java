@@ -18,4 +18,6 @@ public class QualitativeInsight {
     String macroSummary;           // 거시경제 및 시장 주요 요약
     List<String> keyHeadlines;     // RAG로 검색된 주요 뉴스/공시 헤드라인
     String riskFactors;            // 주요 리스크 요인
+    String primaryImageUrl;        // 뉴스 대표 실시간 보도 사진/썸네일 URL
+    List<String> imageUrls;        // 연관 보도 사진 목록
 }

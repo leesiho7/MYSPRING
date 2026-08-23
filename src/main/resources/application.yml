@@ -49,6 +49,9 @@ trading:
     quant-weight: 0.6
     qual-weight: 0.4
     divergence-threshold: 0.5
+  rate-limit:
+    enabled: true
+    daily-limit: 3 # 일일 무료 AI 분석 횟수 제한 (언제든 5, 10회로 상향 가능)
 
 # Bright Data Web Intelligence & Realtime Scraping API
 brightdata:

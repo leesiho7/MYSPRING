@@ -87,6 +87,7 @@ public class OllamaMarketAgentService {
                             .macroSummary(node.path("macroSummary").asText("시장 전반의 긍정적인 유동성 유입세와 투자 심리 개선"))
                             .keyHeadlines(headlines)
                             .riskFactors(node.path("riskFactors").asText("단기 금리 변동성 및 거시경제 지표 발표 주시 필요"))
+                            .primaryImageUrl(ragService.getPrimaryImageUrl(symbol))
                             .build();
                 }
             } catch (Exception e) {
@@ -106,6 +107,7 @@ public class OllamaMarketAgentService {
                 .macroSummary("기관 자금 유입 및 주요 매크로 지표 안정화로 중장기적 상승 모멘텀 유지")
                 .keyHeadlines(headlines)
                 .riskFactors("단기 차익 실현 매물 출회 및 글로벌 거시경제 변동성")
+                .primaryImageUrl(ragService.getPrimaryImageUrl(symbol))
                 .build();
     }
 }
