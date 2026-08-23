@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 spring:
   main:
@@ -8,10 +8,10 @@ spring:
     name: trading-intelligence-system
 
   datasource:
-    url: jdbc:mysql://localhost:3306/springai?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    url: ${MYSQL_URL:jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:springai}?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 1234
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:1234}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
@@ -25,26 +25,28 @@ spring:
       hibernate:
         format_sql: false
 
-  # Spring AI Ollama Settings (Local LLM)
+  # Spring AI Ollama Settings (Local LLM / Nosana Remote GPU Node)
   ai:
     ollama:
-      base-url: https://3zZzp5QZ2YkMoRB89g7B7BR23R7FH8oDR5A2qyEJsRXL.node.k8s.prd.nos.ci
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         enabled: true
+        model: ${CHAT_MODEL:qwen2.5:14b}
         options:
-          model: llama3:latest
-          temperature: 0.2
+          model: ${CHAT_MODEL:qwen2.5:14b}
+          temperature: 0.1
       embedding:
         enabled: true
+        model: ${EMBEDDING_MODEL:bge-m3:latest}
         options:
-          model: nomic-embed-text:latest
+          model: ${EMBEDDING_MODEL:bge-m3:latest}
     # Spring AI ChromaDB Vector Store
     vectorstore:
       chroma:
         client:
-          host: http://localhost
-          port: 8000
-        collection-name: financial-market-news
+          host: ${CHROMADB_HOST:http://localhost}
+          port: ${CHROMADB_PORT:8000}
+        collection-name: ${CHROMADB_COLLECTION:financial-market-news}
         initialize-schema: false
 
 # Custom Trading System Settings
@@ -54,12 +56,12 @@ trading:
     qual-weight: 0.4
     divergence-threshold: 0.5
   rate-limit:
-    enabled: true
-    daily-limit: 3 # 일일 무료 AI 분석 횟수 제한 (언제든 5, 10회로 상향 가능)
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    daily-limit: ${RATE_LIMIT_DAILY_LIMIT:3} # 일일 무료 AI 분석 횟수 제한
 
 # Bright Data Web Intelligence & Realtime Scraping API
 brightdata:
-  api-key: 4a62ad76-a8e4-46cb-9cb0-deaf9e6587a7
-  base-url: https://api.brightdata.com
-  enabled: true
+  api-key: ${BRIGHTDATA_API_KEY:4a62ad76-a8e4-46cb-9cb0-deaf9e6587a7}
+  base-url: ${BRIGHTDATA_BASE_URL:https://api.brightdata.com}
+  enabled: ${BRIGHTDATA_ENABLED:true}
 

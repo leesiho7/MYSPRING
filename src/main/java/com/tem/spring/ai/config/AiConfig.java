@@ -34,6 +34,31 @@ public class AiConfig {
     private String collectionName;
 
 
+    @Value("${spring.ai.ollama.base-url:http://localhost:11434}")
+    private String ollamaBaseUrl;
+
+    @Value("${spring.ai.ollama.embedding.options.model:bge-m3:latest}")
+    private String embeddingModelName;
+
+    @Bean
+    @Primary
+    public EmbeddingModel embeddingModel(ObjectProvider<org.springframework.web.client.RestClient.Builder> restClientBuilderProvider,
+                                         ObjectProvider<org.springframework.web.reactive.function.client.WebClient.Builder> webClientBuilderProvider) {
+        try {
+            org.springframework.web.client.RestClient.Builder restBuilder = restClientBuilderProvider.orderedStream().findFirst().orElseGet(org.springframework.web.client.RestClient::builder);
+            org.springframework.web.reactive.function.client.WebClient.Builder webBuilder = webClientBuilderProvider.orderedStream().findFirst().orElseGet(org.springframework.web.reactive.function.client.WebClient::builder);
+            org.springframework.ai.ollama.api.OllamaApi ollamaApi = new org.springframework.ai.ollama.api.OllamaApi(ollamaBaseUrl, restBuilder, webBuilder);
+            org.springframework.ai.ollama.api.OllamaOptions options = org.springframework.ai.ollama.api.OllamaOptions.builder()
+                    .withModel(embeddingModelName)
+                    .build();
+            log.info("[AiConfig] ✅ Initialized dedicated OllamaEmbeddingModel with BGE-M3 model: '{}' at {}", embeddingModelName, ollamaBaseUrl);
+            return new org.springframework.ai.ollama.OllamaEmbeddingModel(ollamaApi, options);
+        } catch (Throwable t) {
+            log.warn("[AiConfig] Failed to init OllamaEmbeddingModel, using fallback: {}", t.getMessage());
+            return createFallbackEmbeddingModel();
+        }
+    }
+
     private EmbeddingModel createFallbackEmbeddingModel() {
         return new EmbeddingModel() {
             @Override
@@ -50,11 +75,11 @@ public class AiConfig {
             }
 
             private float[] generateTextEmbedding(String text) {
-                float[] vec = new float[384];
+                float[] vec = new float[1024]; // BGE-M3 1024-dimension standard
                 if (text != null) {
                     byte[] bytes = text.getBytes();
                     for (int i = 0; i < bytes.length; i++) {
-                        vec[i % 384] += (float) (bytes[i] & 0xFF) / 255.0f;
+                        vec[i % 1024] += (float) (bytes[i] & 0xFF) / 255.0f;
                     }
                 }
                 return vec;
@@ -64,20 +89,19 @@ public class AiConfig {
 
     @Bean
     @Primary
-    public VectorStore vectorStore(ObjectProvider<EmbeddingModel> embeddingModelProvider, ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
+    public VectorStore vectorStore(EmbeddingModel embeddingModel, ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
         String chromaUrl = chromaHost + ":" + chromaPort;
-        EmbeddingModel embeddingModel = embeddingModelProvider.orderedStream().findFirst().orElseGet(this::createFallbackEmbeddingModel);
         try {
             RestClient.Builder builder = restClientBuilderProvider.orderedStream().findFirst().orElseGet(RestClient::builder);
             // Quick probe to verify if ChromaDB server is actively running on port 8000
             RestClient probeClient = builder.baseUrl(chromaUrl).build();
             probeClient.get().uri("/api/v1/heartbeat").retrieve().toBodilessEntity();
 
-            log.info("[AiConfig] ChromaDB is ONLINE at {}. Connecting ChromaVectorStore...", chromaUrl);
+            log.info("[AiConfig] ChromaDB is ONLINE at {}. Connecting ChromaVectorStore with BGE-M3 (1024-dim)...", chromaUrl);
             ChromaApi chromaApi = new ChromaApi(chromaUrl, builder);
             return new ChromaVectorStore(embeddingModel, chromaApi, collectionName, true);
         } catch (Throwable e) {
-            log.info("[AiConfig] ChromaDB (localhost:8000) is OFFLINE. Seamlessly operating with in-memory SimpleVectorStore (RAM-based, zero-config).");
+            log.info("[AiConfig] ChromaDB (localhost:8000) is OFFLINE. Operating with in-memory SimpleVectorStore (RAM-based, BGE-M3 standard).");
             return new SimpleVectorStore(embeddingModel);
         }
     }

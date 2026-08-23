@@ -20,4 +20,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns("/api/trading/decision", "/api/ai/sentiment");
     }
+
+    @Override
+    public void addFormatters(org.springframework.format.FormatterRegistry registry) {
+        registry.addConverter(new org.springframework.core.convert.converter.Converter<String, com.tem.spring.core.model.TimeFrame>() {
+            @Override
+            public com.tem.spring.core.model.TimeFrame convert(String source) {
+                return com.tem.spring.core.model.TimeFrame.fromString(source);
+            }
+        });
+    }
 }

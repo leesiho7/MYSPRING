@@ -3,37 +3,57 @@ package com.tem.spring.ai.service;
 import com.tem.spring.ai.dto.AiResearchChatRequest;
 import com.tem.spring.ai.dto.AiResearchChatResponse;
 import com.tem.spring.ai.rag.FinancialNewsRagService;
+import com.tem.spring.core.model.Candle;
+import com.tem.spring.core.model.QuantitativeSignal;
+import com.tem.spring.core.model.TimeFrame;
+import com.tem.spring.ingestion.service.MarketDataIngestionService;
+import com.tem.spring.quant.adapter.BarSeriesMapper;
+import com.tem.spring.quant.indicator.TechnicalIndicatorEngine;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import org.ta4j.core.BarSeries;
 
 import java.util.List;
 import java.util.UUID;
 
 /**
  * 블룸버그 인텔리전스 및 골드만삭스 퀀트 수준의 고품격 리서치 에이전트 서비스
- * 실시간 온체인, 매크로 유동성, ta4j 정량 수식, 피보나치 지지선 및 3단계 시나리오 제공
+ * 실시간 ta4j 정량 지표 + RAG 뉴스 문맥을 LLM 프롬프트에 주입하여
+ * 근거 있는 기관급 답변을 생성한다.
  */
 @Slf4j
 @Service
 public class AiResearchChatService {
 
     private final FinancialNewsRagService ragService;
+    private final MarketDataIngestionService ingestionService;
+    private final BarSeriesMapper barSeriesMapper;
+    private final TechnicalIndicatorEngine indicatorEngine;
     private final ChatClient chatClient;
 
     public AiResearchChatService(ObjectProvider<ChatModel> chatModelProvider,
                                  ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
-                                 FinancialNewsRagService ragService) {
+                                 FinancialNewsRagService ragService,
+                                 MarketDataIngestionService ingestionService,
+                                 BarSeriesMapper barSeriesMapper,
+                                 TechnicalIndicatorEngine indicatorEngine) {
         this.ragService = ragService;
+        this.ingestionService = ingestionService;
+        this.barSeriesMapper = barSeriesMapper;
+        this.indicatorEngine = indicatorEngine;
+
         ChatClient client = null;
         try {
             ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
             if (builder != null) {
                 client = builder.build();
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            log.warn("[AiResearchChat] ChatClient.Builder 초기화 실패: {}", t.getMessage());
+        }
 
         if (client == null) {
             try {
@@ -41,142 +61,258 @@ public class AiResearchChatService {
                 if (model != null) {
                     client = ChatClient.create(model);
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable t) {
+                log.warn("[AiResearchChat] ChatModel 초기화 실패: {}", t.getMessage());
+            }
         }
+
         this.chatClient = client;
+        if (this.chatClient == null) {
+            log.error("[AiResearchChat] ⚠️ ChatClient 가 null 입니다. Ollama(Nosana LLM) 자동설정을 확인하세요. "
+                    + "현재는 하드코딩 폴백 엔진으로만 응답합니다.");
+        } else {
+            log.info("[AiResearchChat] ✅ ChatClient(Ollama/Nosana LLM) 초기화 완료");
+        }
     }
 
     public AiResearchChatResponse processResearchChat(AiResearchChatRequest req) {
         String prompt = req.getPrompt() != null ? req.getPrompt().trim() : "";
-        String symbol = (req.getSymbol() != null && !req.getSymbol().isBlank()) ? req.getSymbol().toUpperCase() : "BTCUSDT";
-        
-        // Auto-extract coin from natural language prompt if present
-        String lowerP = prompt.toLowerCase();
-        if (lowerP.contains("수이") || lowerP.contains("sui")) {
-            symbol = "SUIUSDT";
-        } else if (lowerP.contains("이더") || lowerP.contains("eth")) {
-            symbol = "ETHUSDT";
-        } else if (lowerP.contains("솔라나") || lowerP.contains("sol")) {
-            symbol = "SOLUSDT";
-        } else if (lowerP.contains("엔비디아") || lowerP.contains("nvda")) {
-            symbol = "NVDA";
-        } else if (lowerP.contains("삼성") || lowerP.contains("samsung")) {
-            symbol = "005930.KS";
-        } else if (lowerP.contains("비트") || lowerP.contains("btc")) {
-            symbol = "BTCUSDT";
-        }
-        
-        String convId = req.getConversationId() != null ? req.getConversationId() : UUID.randomUUID().toString();
+        String symbol = (req.getSymbol() != null && !req.getSymbol().isBlank())
+                ? req.getSymbol().toUpperCase() : "BTCUSDT";
+        symbol = extractSymbolFromPrompt(prompt.toLowerCase(), symbol);
 
+        String convId = req.getConversationId() != null ? req.getConversationId() : UUID.randomUUID().toString();
         log.info("[AiResearchChat] Processing institutional query for {} (ConvID: {}): '{}'", symbol, convId, prompt);
 
-        // 1. Ollama 로컬 LLM 호출 (블룸버그 수석 퀀트 프롬프트)
+        // 1. 실시간 시장 데이터 수집 (ta4j 정량 지표 + RAG 뉴스) - LLM 프롬프트 그라운딩용
+        QuantitativeSignal quant = fetchQuantSignal(symbol);
+        List<String> news = fetchNews(symbol);
+        String marketContext = buildMarketContext(quant, news);
+
+        // 2. Ollama(Nosana) LLM 호출
         if (chatClient != null && !prompt.isBlank()) {
             try {
-                StringBuilder historyContext = new StringBuilder();
-                if (req.getHistory() != null && !req.getHistory().isEmpty()) {
-                    for (AiResearchChatRequest.ChatMessageDto msg : req.getHistory()) {
-                        historyContext.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
-                    }
-                }
-
-                String systemPrompt = """
-                        당신은 블룸버그 인텔리전스(Bloomberg Intelligence) 및 월스트리트 헤지펀드 수석 퀀트 디렉터입니다.
-                        단답형 대답을 절대 지양하고, 기관 투자자를 위한 고품격 정밀 퀀트 메모랜덤 형태로 답변하세요.
-                        
-                        [분석 대상 자산]: %s
-                        [투자 의도]: %s, [운용 기간]: %s, [예산]: %s
-                        
-                        [대화 맥락 기록]
-                        %s
-                        
-                        [고객의 현재 질의]
-                        %s
-                        
-                        반드시 아래 4대 분석 프레임워크를 갖추어 구체적인 수치(비중, 가격선, 손익비)와 함께 상세히 분석하세요:
-                        1. 매크로 유동성 & 온체인 자금 흐름 (Macro & On-chain Flow)
-                        2. ta4j 기술적 오더북 지표 & 피보나치 레벨 (Quantitative Microstructure)
-                        3. 구체적 3단계 포지션 사이징 실행 계획 (3-Stage Sizing: 1차 30%%, 2차 40%%, 3차 30%%)
-                        4. 비대칭 손익비(Asymmetric R:R) 및 무효화 손절 기준선
-                        """.formatted(symbol, req.getIntent(), req.getHorizon(), req.getAmount(), historyContext.toString(), prompt);
+                String systemPrompt = buildSystemPrompt(symbol, req, marketContext);
+                String userPrompt = buildUserPrompt(req, prompt);
 
                 String llmReply = chatClient.prompt()
-                        .user(systemPrompt)
+                        .system(systemPrompt)
+                        .user(userPrompt)
                         .call()
                         .content();
 
                 if (llmReply != null && !llmReply.isBlank()) {
-                    return AiResearchChatResponse.builder()
-                            .reply(llmReply)
-                            .conversationId(convId)
-                            .symbol(symbol)
-                            .intentVerdict(req.getIntent() != null ? req.getIntent() : "BUY")
-                            .recommendation("INSTITUTIONAL SCALE-IN")
-                            .positionSizingGuide("1차 30% (정찰) / 2차 40% (지지선) / 3차 30% (돌파)")
-                            .invalidationLevel("50 SMA & 피보나치 0.618 이탈 시")
-                            .confidenceScore(0.93)
-                            .entryQualityScore(88)
-                            .build();
+                    log.info("[AiResearchChat] ✅ LLM 응답 생성 완료 ({}자)", llmReply.length());
+                    return buildResponse(llmReply, convId, symbol, req, quant);
                 }
+                log.warn("[AiResearchChat] LLM 이 빈 응답을 반환하여 폴백 엔진으로 전환합니다.");
             } catch (Exception e) {
-                log.warn("[AiResearchChat] Ollama invocation failed (switching to Institutional Engine): {}", e.getMessage());
+                // 조용히 삼키지 않고 스택트레이스까지 남겨 원인 진단이 가능하도록 함
+                log.error("[AiResearchChat] ❌ Ollama(Nosana) LLM 호출 실패 - 폴백 엔진으로 전환합니다. 원인: {}",
+                        e.getMessage(), e);
             }
         }
 
-        // 2. 블룸버그 애널리스트급 고품격 정밀 분석 엔진 (Institutional Quant Engine)
-        return generateInstitutionalQuantReport(symbol, prompt, req);
+        // 3. LLM 사용 불가 시 정량 데이터 기반 폴백 리포트
+        return generateInstitutionalQuantReport(symbol, prompt, req, quant);
     }
 
-    private AiResearchChatResponse generateInstitutionalQuantReport(String symbol, String prompt, AiResearchChatRequest req) {
+    // ---------------------------------------------------------------------
+    // 프롬프트 구성
+    // ---------------------------------------------------------------------
+
+    private String buildSystemPrompt(String symbol, AiResearchChatRequest req, String marketContext) {
+        return """
+                당신은 블룸버그 인텔리전스(Bloomberg Intelligence) 및 월스트리트 헤지펀드의 수석 퀀트 디렉터입니다.
+
+                [최우선 작성 원칙]
+                - 반드시 한국어 존댓말로만 작성하십시오.
+                - 1~2문장의 단답형 요약을 절대 금지합니다. 기관 투자자 및 전문 트레이더에게 보고하는 **최소 500자 이상의 고품격 정밀 퀀트 메모랜덤**을 작성하십시오.
+                - 아래 [실시간 시장 데이터]에 명시된 실제 수치(현재가, RSI, SMA20/50, 볼린저밴드, 퀀트 점수)와 [BGE-M3 뉴스 문맥]을 본문에 반드시 직접 인용하여 심층 분석하십시오.
+
+                [분석 대상 자산]: %s
+                [투자 의도]: %s / [운용 기간]: %s / [가용 예산]: %s
+
+                [실시간 시장 데이터 — 반드시 아래 수치를 인용하여 서술할 것]
+                %s
+
+                [반드시 준수해야 할 마크다운 출력 템플릿]
+                아래 4개 섹션과 표(Table) 형식을 반드시 그대로 갖추어 상세하게 작성하십시오:
+
+                ### 1. 🌐 거시경제(Macro) 및 기관 수급(Flow) 심층 진단
+                - RAG 뉴스 데이터 및 거시경제 유동성 흐름을 바탕으로 한 현재 시장의 구조적 방향성을 2문장 이상으로 상세 분석.
+
+                ### 2. 📈 ta4j 정량 지표 정밀 판정
+                - **실시간 현재가 및 이평선 구조**: 현재가, SMA20, SMA50 및 골든/데드크로스 현황 인용 분석.
+                - **모멘텀 및 변동성**: RSI(14) 수치와 볼린저 밴드 상단/하단 레벨을 직접 수치로 인용하여 지지/저항 구간 설명.
+                - **퀀트 종합 스코어**: ta4j 정량 점수 및 추천 액션에 대한 수학적 해석.
+
+                ### 3. 🎯 3단계 포지션 사이징(Scale-in) 분할 진입 실행표
+                | 진입 단계 | 권장 비중 | 진입 조건 및 타겟 가격대 | 실행 가이드 |
+                | :--- | :--- | :--- | :--- |
+                | **1차 정찰** | 30%% | 현재가 부근 모멘텀 확증 | 시장 진입 및 캔들 반응 확인 |
+                | **2차 지지** | 40%% | 20 SMA / 볼린저 중단 지지 확인 시 | 최대 비중으로 평단가 최적화 |
+                | **3차 돌파** | 30%% | 직전 고점 및 저항선 상방 돌파 안착 시 | 추세 강화 시 추가 불타기 |
+
+                ### 4. ⚖️ 비대칭 손익비(Asymmetric R:R) 및 손절(Invalidation) 기준선
+                - **목표 기대 수익 (Target)**: 구체적 1차/2차 목표가 및 기대 수익률(%%).
+                - **무효화 손절선 (Stop-Loss)**: 구조가 깨지는 이탈 기준 가격선 및 손실 제한선.
+                - **최종 손익비 (Risk/Reward)**: 최소 1:2.5 이상의 비대칭 손익비 계산 근거.
+                """.formatted(
+                symbol,
+                nvl(req.getIntent(), "매수/포지션 진입 여부 타진"),
+                nvl(req.getHorizon(), "중단기 스윙"),
+                nvl(req.getAmount(), "가용 운용 자본"),
+                marketContext);
+    }
+
+    private String buildUserPrompt(AiResearchChatRequest req, String prompt) {
+        StringBuilder sb = new StringBuilder();
+        if (req.getHistory() != null && !req.getHistory().isEmpty()) {
+            sb.append("[이전 대화 맥락]\n");
+            for (AiResearchChatRequest.ChatMessageDto msg : req.getHistory()) {
+                sb.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
+            }
+            sb.append("\n");
+        }
+        sb.append("[고객의 현재 질의]\n").append(prompt);
+        return sb.toString();
+    }
+
+    // ---------------------------------------------------------------------
+    // 실시간 데이터 수집
+    // ---------------------------------------------------------------------
+
+    private QuantitativeSignal fetchQuantSignal(String symbol) {
+        try {
+            List<Candle> candles = ingestionService.getHistoricalData(symbol, TimeFrame.H4, 100);
+            BarSeries series = barSeriesMapper.toBarSeries(symbol, candles);
+            return indicatorEngine.calculateSignals(series);
+        } catch (Exception e) {
+            log.warn("[AiResearchChat] ta4j 정량 지표 수집 실패 (데이터 없이 진행): {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private List<String> fetchNews(String symbol) {
+        try {
+            return ragService.retrieveRelevantNews(symbol);
+        } catch (Exception e) {
+            log.warn("[AiResearchChat] RAG 뉴스 수집 실패 (뉴스 없이 진행): {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private String buildMarketContext(QuantitativeSignal q, List<String> news) {
+        StringBuilder ctx = new StringBuilder();
+        if (q != null) {
+            ctx.append(String.format("- 현재가: %.2f%n", q.getCurrentPrice()));
+            ctx.append(String.format("- RSI(14): %.1f (%s)%n", q.getRsi(), q.getRsiStatus()));
+            ctx.append(String.format("- SMA20: %.2f / SMA50: %.2f (골든크로스=%b, 데드크로스=%b)%n",
+                    q.getSma20(), q.getSma50(), q.isGoldenCross(), q.isDeadCross()));
+            ctx.append(String.format("- 볼린저밴드 상단/중단/하단: %.2f / %.2f / %.2f%n",
+                    q.getBollingerUpper(), q.getBollingerMiddle(), q.getBollingerLower()));
+            ctx.append(String.format("- ta4j 정량 추천: %s (퀀트점수 %.2f, -1.0=강한매도 ~ +1.0=강한매수)%n",
+                    q.getSuggestedAction(), q.getQuantScore()));
+            if (q.getSignalsSummary() != null && !q.getSignalsSummary().isEmpty()) {
+                ctx.append("- 감지된 시그널: ").append(String.join(", ", q.getSignalsSummary())).append(System.lineSeparator());
+            }
+        } else {
+            ctx.append("(실시간 정량 지표를 불러오지 못했습니다.)").append(System.lineSeparator());
+        }
+
+        if (news != null && !news.isEmpty()) {
+            ctx.append("- 최신 뉴스 헤드라인:").append(System.lineSeparator());
+            for (String n : news) {
+                ctx.append("    • ").append(n).append(System.lineSeparator());
+            }
+        }
+        return ctx.toString();
+    }
+
+    // ---------------------------------------------------------------------
+    // 응답 빌더 / 폴백
+    // ---------------------------------------------------------------------
+
+    private AiResearchChatResponse buildResponse(String reply, String convId, String symbol,
+                                                 AiResearchChatRequest req, QuantitativeSignal quant) {
+        String verdict = quant != null && quant.getSuggestedAction() != null
+                ? quant.getSuggestedAction().name()
+                : (req.getIntent() != null ? req.getIntent() : "BUY");
+        double confidence = quant != null ? Math.min(0.99, 0.6 + Math.abs(quant.getQuantScore()) * 0.4) : 0.9;
+
+        return AiResearchChatResponse.builder()
+                .reply(reply)
+                .conversationId(convId)
+                .symbol(symbol)
+                .intentVerdict(verdict)
+                .recommendation("INSTITUTIONAL SCALE-IN")
+                .positionSizingGuide("1차 30% (정찰) / 2차 40% (지지선) / 3차 30% (돌파)")
+                .invalidationLevel("50 SMA & 피보나치 0.618 이탈 시")
+                .confidenceScore(Math.round(confidence * 100.0) / 100.0)
+                .entryQualityScore(quant != null ? (int) Math.round(50 + quant.getQuantScore() * 50) : 88)
+                .build();
+    }
+
+    private String extractSymbolFromPrompt(String lowerP, String fallback) {
+        if (lowerP.contains("수이") || lowerP.contains("sui")) return "SUIUSDT";
+        if (lowerP.contains("이더") || lowerP.contains("eth")) return "ETHUSDT";
+        if (lowerP.contains("솔라나") || lowerP.contains("sol")) return "SOLUSDT";
+        if (lowerP.contains("엔비디아") || lowerP.contains("nvda")) return "NVDA";
+        if (lowerP.contains("삼성") || lowerP.contains("samsung")) return "005930.KS";
+        if (lowerP.contains("비트") || lowerP.contains("btc")) return "BTCUSDT";
+        return fallback;
+    }
+
+    private static String nvl(String s, String def) {
+        return (s != null && !s.isBlank()) ? s : def;
+    }
+
+    private AiResearchChatResponse generateInstitutionalQuantReport(String symbol, String prompt,
+                                                                    AiResearchChatRequest req,
+                                                                    QuantitativeSignal quant) {
         String convId = req.getConversationId() != null ? req.getConversationId() : UUID.randomUUID().toString();
         String lowerPrompt = prompt.toLowerCase();
         String budget = (req.getAmount() != null && !req.getAmount().isBlank()) ? req.getAmount() : "총 운용 자산";
 
+        // 폴백이어도 수집된 실시간 정량 수치를 최대한 반영
+        String priceLine = quant != null
+                ? String.format("현재가 %.2f, RSI %.1f(%s), 퀀트점수 %.2f", quant.getCurrentPrice(), quant.getRsi(),
+                        quant.getRsiStatus(), quant.getQuantScore())
+                : "실시간 지표 수집 실패";
+
         StringBuilder sb = new StringBuilder();
+        sb.append("⚠️ (LLM 미가동: 정량 엔진 기반 폴백 응답입니다)\n\n");
 
-        if (lowerPrompt.contains("얼마나") || lowerPrompt.contains("비중") || lowerPrompt.contains("몇퍼") || lowerPrompt.contains("얼마씩") || lowerPrompt.contains("비율")) {
-            sb.append(String.format("🏛️ [BLOOMBERG INTELLIGENCE // %s TACTICAL ALLOCATION MEMO]\n\n", symbol));
-            sb.append(String.format("고객님의 포지션 사이징 질의('%s')에 대한 기관급 3단계 자산 배분 모델입니다:\n\n", prompt));
-            
-            sb.append(String.format("📊 1. 가용 자본 배분 프레임워크 (Capital Sizing - %s 기준)\n", budget));
-            sb.append("• 1차 정찰 배치 (30% Sizing): 현재 가격 레벨에서 모멘텀 확증을 위해 30%를 진입합니다. (변동성 흡수 및 진입 기회 확보)\n");
-            sb.append("• 2차 지지선 가중 분할 (40% Core): 20일 이동평균선 또는 피보나치 0.618 되돌림 지지선 부근으로 눌림 발생 시 가장 큰 비중(40%)을 투입하여 평균 단가를 최적화합니다.\n");
-            sb.append("• 3차 불타기 돌파 배치 (30% Momentum Pyramiding): 직전 고점 저항선 상방 돌파 및 거래량 동반 안착 시 나머지 30%를 투입하여 추세 수익을 극대화합니다.\n\n");
-
-            sb.append("⚖️ 2. 리스크 파라미터 & 비대칭 손익비 (Asymmetric Risk-Reward)\n");
-            sb.append("• 목표 기대 수익(Upside Target): 직전 고점 레벨 (+12.4% ~ +18.6%)\n");
-            sb.append("• 최대 허용 손실(Max Drawdown Invalidation): 50일선 하향 이탈 시 (-3.8% 이내 전량 손절)\n");
-            sb.append("• 산출 손익비(Risk-to-Reward Ratio): 1 : 3.6 (통계적 양의 기댓값 확보)\n\n");
-
-            sb.append("💡 3. 헤지펀드 트레이딩 디스크 총평\n");
-            sb.append("일괄 몰빵 진입은 불필요한 슬리피지와 감정적 손절을 유발합니다. 상기 30% / 40% / 30% 룰을 철저히 준수하여 시장 변동성을 자신의 우위(Edge)로 활용하십시오.");
+        if (lowerPrompt.contains("얼마나") || lowerPrompt.contains("비중") || lowerPrompt.contains("몇퍼")
+                || lowerPrompt.contains("얼마씩") || lowerPrompt.contains("비율")) {
+            sb.append(String.format("🏛️ [%s TACTICAL ALLOCATION MEMO]%n%n", symbol));
+            sb.append(String.format("실시간 지표: %s%n%n", priceLine));
+            sb.append(String.format("📊 1. 가용 자본 배분 프레임워크 (%s 기준)%n", budget));
+            sb.append("• 1차 정찰 배치 (30%): 현재 레벨에서 모멘텀 확증을 위해 진입합니다.\n");
+            sb.append("• 2차 지지선 가중 (40%): 20일선/피보 0.618 눌림 시 가장 큰 비중 투입.\n");
+            sb.append("• 3차 돌파 배치 (30%): 직전 고점 상방 돌파 및 거래량 안착 시 투입.\n\n");
+            sb.append("⚖️ 2. 비대칭 손익비: 목표 +12.4%~+18.6% / 무효화 50일선 이탈(-3.8%) / R:R ≈ 1:3.6\n");
         } else {
-            sb.append(String.format("🏛️ [BLOOMBERG INTELLIGENCE // %s 4-ENGINE QUANT REPORT]\n\n", symbol));
-            sb.append(String.format("질의하신 '%s'에 대해 Bright Data 글로벌 속보 및 ta4j 정량 지표를 융합한 심층 진단입니다:\n\n", prompt));
-
-            sb.append("🌐 1. 매크로 유동성 및 기관 자금 동향 (Macro & Institutional Flow)\n");
-            sb.append("• 현물 ETF 및 주요 파생상품 시장에서 기관 순유입세가 지속되며, 오더북 매도벽 대비 매수 지지선 두께가 1.6배 우세합니다.\n");
-            sb.append("• 온체인 고래 지갑의 거래소 외부 유출(Exchange Net Outflow)이 관측되어 공급 스퀴즈(Supply Squeeze) 압력이 형성되고 있습니다.\n\n");
-
-            sb.append("📈 2. ta4j 기술적 오더북 & 프랙탈 구조 (Microstructure Conviction)\n");
-            sb.append("• RSI 62.4 구간으로 강세 국면(Bullish Regime) 유지 중이며, 20/50 SMA 골든크로스가 유효합니다.\n");
-            sb.append("• 과거 5개년 유사 차트 패턴(Similarity 89%) 분석 결과, 5거래일 내 80% 확률로 평균 +6.4% 추가 확장이 관측되었습니다.\n\n");
-
-            sb.append(String.format("🎯 3. 액션 플랜 (Tactical Sizing - %s)\n", budget));
-            sb.append("• 현재 구간에서는 무리한 풀매수보다 '3단계 분할 매수(Scale-in: 30% / 40% / 30%)' 전략이 수학적 기대치 1순위입니다.\n");
-            sb.append("• 1차 30% 정찰 매수 후, 20일선 눌림목에서 40% 추가 매집하는 전술적 운용을 강력 권고합니다.");
+            sb.append(String.format("🏛️ [%s 4-ENGINE QUANT REPORT]%n%n", symbol));
+            sb.append(String.format("실시간 지표: %s%n%n", priceLine));
+            sb.append("🌐 1. 매크로/기관 자금: 현물 ETF 순유입 지속, 매수 지지선 우세.\n");
+            sb.append("📈 2. ta4j 미시구조: 위 RSI/SMA 기준 추세 판단, 골든크로스 유효성 점검.\n");
+            sb.append(String.format("🎯 3. 액션 플랜 (%s): 3단계 분할 매수(30%%/40%%/30%%) 권고.%n", budget));
         }
 
         return AiResearchChatResponse.builder()
                 .reply(sb.toString())
                 .conversationId(convId)
                 .symbol(symbol)
-                .intentVerdict(req.getIntent() != null ? req.getIntent() : "BUY")
+                .intentVerdict(quant != null && quant.getSuggestedAction() != null
+                        ? quant.getSuggestedAction().name()
+                        : (req.getIntent() != null ? req.getIntent() : "BUY"))
                 .recommendation("INSTITUTIONAL SCALE-IN")
                 .positionSizingGuide("1차 30% / 2차 40% / 3차 30% (피보나치 기반)")
                 .invalidationLevel("50 SMA & 피보나치 0.618 이탈 시")
-                .confidenceScore(0.92)
-                .entryQualityScore(92)
+                .confidenceScore(0.75)
+                .entryQualityScore(quant != null ? (int) Math.round(50 + quant.getQuantScore() * 50) : 70)
                 .build();
     }
 }

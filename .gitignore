@@ -35,3 +35,8 @@ build/
 ### Chroma Vector Data ###
 chroma_data/
 
+### Logs and Environment ###
+*.log
+.env
+
+
