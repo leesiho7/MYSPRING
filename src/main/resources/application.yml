@@ -34,6 +34,10 @@ spring:
         options:
           model: llama3:latest
           temperature: 0.2
+      embedding:
+        enabled: true
+        options:
+          model: nomic-embed-text:latest
     # Spring AI ChromaDB Vector Store
     vectorstore:
       chroma:
