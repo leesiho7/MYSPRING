@@ -28,7 +28,7 @@ spring:
   jpa:
     database-platform: ${JPA_DATABASE_PLATFORM:org.hibernate.dialect.H2Dialect}
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:none}
+      ddl-auto: ${JPA_DDL_AUTO:create-drop}
     show-sql: false
     properties:
       hibernate:
