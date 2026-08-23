@@ -28,7 +28,7 @@ spring:
   # Spring AI Ollama Settings (Local LLM)
   ai:
     ollama:
-      base-url: https://4kW6cnrmkVf3uFm7nWcsbGU63nhejHwja2ZLMaQeySws.node.k8s.prd.nos.ci
+      base-url: https://3zZzp5QZ2YkMoRB89g7B7BR23R7FH8oDR5A2qyEJsRXL.node.k8s.prd.nos.ci
       chat:
         enabled: true
         options:
