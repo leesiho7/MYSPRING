@@ -122,7 +122,7 @@ public class AiResearchChatService {
     // ---------------------------------------------------------------------
 
     private String buildSystemPrompt(String symbol, AiResearchChatRequest req, String marketContext) {
-        return """
+        String template = """
                 당신은 블룸버그 인텔리전스(Bloomberg Intelligence) 및 월스트리트 헤지펀드의 수석 퀀트 디렉터입니다.
 
                 [최우선 작성 원칙]
@@ -130,11 +130,11 @@ public class AiResearchChatService {
                 - 1~2문장의 단답형 요약을 절대 금지합니다. 기관 투자자 및 전문 트레이더에게 보고하는 **최소 500자 이상의 고품격 정밀 퀀트 메모랜덤**을 작성하십시오.
                 - 아래 [실시간 시장 데이터]에 명시된 실제 수치(현재가, RSI, SMA20/50, 볼린저밴드, 퀀트 점수)와 [BGE-M3 뉴스 문맥]을 본문에 반드시 직접 인용하여 심층 분석하십시오.
 
-                [분석 대상 자산]: %s
-                [투자 의도]: %s / [운용 기간]: %s / [가용 예산]: %s
+                [분석 대상 자산]: {{SYMBOL}}
+                [투자 의도]: {{INTENT}} / [운용 기간]: {{HORIZON}} / [가용 예산]: {{AMOUNT}}
 
                 [실시간 시장 데이터 — 반드시 아래 수치를 인용하여 서술할 것]
-                %s
+                {{MARKET_CONTEXT}}
 
                 [반드시 준수해야 할 마크다운 출력 템플릿]
                 아래 4개 섹션과 표(Table) 형식을 반드시 그대로 갖추어 상세하게 작성하십시오:
@@ -150,20 +150,22 @@ public class AiResearchChatService {
                 ### 3. 🎯 3단계 포지션 사이징(Scale-in) 분할 진입 실행표
                 | 진입 단계 | 권장 비중 | 진입 조건 및 타겟 가격대 | 실행 가이드 |
                 | :--- | :--- | :--- | :--- |
-                | **1차 정찰** | 30%% | 현재가 부근 모멘텀 확증 | 시장 진입 및 캔들 반응 확인 |
-                | **2차 지지** | 40%% | 20 SMA / 볼린저 중단 지지 확인 시 | 최대 비중으로 평단가 최적화 |
-                | **3차 돌파** | 30%% | 직전 고점 및 저항선 상방 돌파 안착 시 | 추세 강화 시 추가 불타기 |
+                | **1차 정찰** | 30% | 현재가 부근 모멘텀 확증 | 시장 진입 및 캔들 반응 확인 |
+                | **2차 지지** | 40% | 20 SMA / 볼린저 중단 지지 확인 시 | 최대 비중으로 평단가 최적화 |
+                | **3차 돌파** | 30% | 직전 고점 및 저항선 상방 돌파 안착 시 | 추세 강화 시 추가 불타기 |
 
                 ### 4. ⚖️ 비대칭 손익비(Asymmetric R:R) 및 손절(Invalidation) 기준선
-                - **목표 기대 수익 (Target)**: 구체적 1차/2차 목표가 및 기대 수익률(%%).
+                - **목표 기대 수익 (Target)**: 구체적 1차/2차 목표가 및 기대 수익률(%).
                 - **무효화 손절선 (Stop-Loss)**: 구조가 깨지는 이탈 기준 가격선 및 손실 제한선.
                 - **최종 손익비 (Risk/Reward)**: 최소 1:2.5 이상의 비대칭 손익비 계산 근거.
-                """.formatted(
-                symbol,
-                nvl(req.getIntent(), "매수/포지션 진입 여부 타진"),
-                nvl(req.getHorizon(), "중단기 스윙"),
-                nvl(req.getAmount(), "가용 운용 자본"),
-                marketContext);
+                """;
+
+        return template
+                .replace("{{SYMBOL}}", symbol)
+                .replace("{{INTENT}}", nvl(req.getIntent(), "매수/포지션 진입 여부 타진"))
+                .replace("{{HORIZON}}", nvl(req.getHorizon(), "중단기 스윙"))
+                .replace("{{AMOUNT}}", nvl(req.getAmount(), "가용 운용 자본"))
+                .replace("{{MARKET_CONTEXT}}", marketContext != null ? marketContext : "");
     }
 
     private String buildUserPrompt(AiResearchChatRequest req, String prompt) {
