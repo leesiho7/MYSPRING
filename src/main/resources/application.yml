@@ -8,19 +8,20 @@ spring:
     name: trading-intelligence-system
 
   # MySQL Database Configuration
+  spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/springai?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER:com.mysql.cj.jdbc.Driver}
-    username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:1234}
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
 
   jpa:
-    database-platform: ${JPA_DATABASE_PLATFORM:org.hibernate.dialect.MySQLDialect}
+    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
