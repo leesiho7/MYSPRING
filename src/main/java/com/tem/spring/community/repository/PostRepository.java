@@ -20,4 +20,7 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
 
     @Query("SELECT p FROM PostEntity p WHERE p.author.id = :authorId ORDER BY p.createdAt DESC")
     List<PostEntity> findPostsByAuthorId(@Param("authorId") Long authorId, Pageable pageable);
+
+    @Query("SELECT COUNT(p) FROM PostEntity p WHERE p.author.id = :authorId")
+    long countByAuthorId(@Param("authorId") Long authorId);
 }

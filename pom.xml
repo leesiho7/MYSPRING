@@ -59,10 +59,13 @@
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-ollama-spring-boot-starter</artifactId>
 		</dependency>
+		<!-- Chroma Vector Store 의존성 주석 처리 (불필요한 네트워크 연결 차단) -->
+		<!--
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-chroma-store-spring-boot-starter</artifactId>
 		</dependency>
+		-->
 
 		<!-- Jackson & Utilities -->
 		<dependency>
