@@ -62,52 +62,75 @@ public class FinancialNewsRagService {
         }
     }
 
+    @org.springframework.beans.factory.annotation.Value("${rag.vectorstore.similarity-threshold:0.7}")
+    private double similarityThreshold;
+
+    @org.springframework.beans.factory.annotation.Value("${rag.vectorstore.top-k:3}")
+    private int topK;
+
     /**
-     * BGE-M3 + ChromaDB 하이브리드 RAG 검색 (실시간 스크래핑 + 지식베이스 벡터 융합)
+     * BGE-M3 + ChromaDB 하이브리드 RAG 검색 (유사도 임계값 기반 VectorStore 캐시 우선 확인 -> 실시간 웹 스크래핑 폴백)
      */
     public List<String> retrieveRelevantNews(String symbol) {
         List<String> combinedContext = new ArrayList<>();
+        boolean vectorHit = false;
 
-        // 1. Bright Data 실시간 웹 스크래핑 및 ChromaDB 자동 인덱싱
-        if (brightDataService != null) {
-            try {
-                List<String> liveNews = brightDataService.scrapeRealtimeFinancialNews(symbol);
-                if (liveNews != null && !liveNews.isEmpty()) {
-                    log.info("[FinancialNewsRagService] Retrieved {} live news via Bright Data for {}", liveNews.size(), symbol);
-                    combinedContext.addAll(liveNews);
-
-                    // 실시간 수집된 뉴스를 BGE-M3로 ChromaDB에 즉시 영속화
-                    indexLiveNewsToVectorStore(symbol, liveNews);
-                }
-            } catch (Exception e) {
-                log.warn("[FinancialNewsRagService] Bright Data scraping bypassed: {}", e.getMessage());
-            }
-        }
-
-        // 2. ChromaDB BGE-M3 시맨틱 벡터 검색 (기관급 사전 지식 + 과거 맥락 추출)
+        // 1. Vector Store (vmstore / ChromaDB / SimpleVectorStore) 유사도 임계값(0.7) 기반 우선 검색
         if (vectorStore != null) {
             try {
-                String query = String.format("%s 기관 자금 유입 거시경제 매크로 온체인 실적 동향", symbol);
-                log.info("[FinancialNewsRagService] Querying ChromaDB with BGE-M3 for: '{}'", query);
-                List<Document> docs = vectorStore.similaritySearch(query);
+                String query = String.format("%s 최근 금융 시장 속보 및 실적 공시 기관 동향", symbol);
+                log.info("[FinancialNewsRagService] Querying VectorStore for '{}' (Similarity Threshold >= {})", query, similarityThreshold);
+
+                org.springframework.ai.vectorstore.SearchRequest searchRequest = org.springframework.ai.vectorstore.SearchRequest.query(query)
+                        .withSimilarityThreshold(similarityThreshold)
+                        .withTopK(topK);
+
+                List<Document> docs = vectorStore.similaritySearch(searchRequest);
                 if (docs != null && !docs.isEmpty()) {
                     List<String> vectorSnippets = docs.stream()
                             .map(Document::getContent)
-                            .limit(3)
                             .toList();
                     combinedContext.addAll(vectorSnippets);
+                    vectorHit = true;
+                    log.info("[FinancialNewsRagService] ✅ VectorStore Hit: Found {} docs with similarity >= {} for {}",
+                            vectorSnippets.size(), similarityThreshold, symbol);
+                } else {
+                    log.info("[FinancialNewsRagService] ℹ️ VectorStore Miss: No docs found with similarity >= {} for {}. Falling back to live scraping.",
+                            similarityThreshold, symbol);
                 }
             } catch (Exception e) {
-                log.warn("[FinancialNewsRagService] ChromaDB query bypassed: {}", e.getMessage());
+                log.warn("[FinancialNewsRagService] VectorStore similarity search error: {}", e.getMessage());
             }
         }
 
+        // 2. VectorStore 결과가 없거나 최고 유사도가 임계값(0.7) 미만인 경우 -> 실시간 웹 스크래핑(Bright Data) 트리거
+        if (!vectorHit && brightDataService != null) {
+            try {
+                log.info("[FinancialNewsRagService] 🌐 Triggering live web scraping for {} via Bright Data...", symbol);
+                List<String> liveNews = brightDataService.scrapeRealtimeFinancialNews(symbol);
+                if (liveNews != null && !liveNews.isEmpty()) {
+                    log.info("[FinancialNewsRagService] ✅ Scraped {} live news items via Bright Data for {}", liveNews.size(), symbol);
+                    combinedContext.addAll(liveNews);
+
+                    // 새로 수집된 실시간 뉴스를 BGE-M3로 VectorStore에 즉시 인덱싱 (다음 검색 시 캐시 적중)
+                    indexLiveNewsToVectorStore(symbol, liveNews);
+                }
+            } catch (Exception e) {
+                log.warn("[FinancialNewsRagService] Bright Data web scraping failed: {}", e.getMessage());
+            }
+        }
+
+        // 3. VectorStore 및 웹 스크래핑 모두 실패한 경우 최종 기본 뉴스 제공
         if (combinedContext.isEmpty()) {
+            log.info("[FinancialNewsRagService] ⚠️ Utilizing institutional baseline fallback news for {}", symbol);
             return generateFallbackNews(symbol);
         }
 
         return combinedContext.stream().distinct().collect(Collectors.toList());
     }
+
+    // 실시간 인덱싱된 문서 ID 중복 방지 추적 캐시 (Deduplication Set)
+    private final java.util.Set<String> indexedDocumentIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private void indexLiveNewsToVectorStore(String symbol, List<String> newsList) {
         if (vectorStore == null || newsList == null || newsList.isEmpty()) return;
@@ -116,16 +139,39 @@ public class FinancialNewsRagService {
                     .withZone(java.time.ZoneId.of("Asia/Seoul"))
                     .format(java.time.Instant.now());
 
-            List<Document> docs = newsList.stream()
-                    .map(news -> new Document(news, Map.of(
-                            "symbol", symbol,
-                            "source", "Bright Data Live SERP Crawler",
-                            "timestamp", timeStr + " KST",
-                            "type", "REALTIME_SCRAPED"
-                    )))
-                    .toList();
-            vectorStore.add(docs);
-            log.info("[FinancialNewsRagService] Indexed {} realtime news docs with metadata to VectorStore for {}", docs.size(), symbol);
+            List<Document> freshDocs = new ArrayList<>();
+            for (String news : newsList) {
+                if (news == null || news.isBlank()) continue;
+
+                // 내용 및 종목 기반 고유 Deterministic Document ID 생성 (중복 인덱싱 원천 차단)
+                String docId = "news_" + java.util.UUID.nameUUIDFromBytes(
+                        (symbol.toUpperCase() + ":" + news.trim()).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+                ).toString();
+
+                if (indexedDocumentIds.add(docId)) {
+                    Document doc = Document.builder()
+                            .withId(docId)
+                            .withContent(news)
+                            .withMetadata(Map.of(
+                                    "symbol", symbol.toUpperCase(),
+                                    "source", "Bright Data Live SERP Crawler",
+                                    "timestamp", timeStr + " KST",
+                                    "type", "REALTIME_SCRAPED"
+                            ))
+                            .build();
+                    freshDocs.add(doc);
+                } else {
+                    log.debug("[FinancialNewsRagService] 🛡️ Deduplication: Skipped duplicate article with ID: {}", docId);
+                }
+            }
+
+            if (!freshDocs.isEmpty()) {
+                vectorStore.add(freshDocs);
+                log.info("[FinancialNewsRagService] 📥 Deduplication complete: Indexed {} NEW unique articles (out of {} scraped) into VectorStore for {}",
+                        freshDocs.size(), newsList.size(), symbol);
+            } else {
+                log.info("[FinancialNewsRagService] ℹ️ All {} scraped articles were already indexed in VectorStore (0 duplicates inserted)", newsList.size());
+            }
         } catch (Exception e) {
             log.debug("[FinancialNewsRagService] Async live news vector indexing skipped: {}", e.getMessage());
         }

@@ -33,17 +33,20 @@ public class AiResearchChatService {
     private final BarSeriesMapper barSeriesMapper;
     private final TechnicalIndicatorEngine indicatorEngine;
     private final ChatClient chatClient;
+    private final ObjectProvider<com.tem.spring.ai.repository.UserQueryRepository> userQueryRepositoryProvider;
 
     public AiResearchChatService(ObjectProvider<ChatModel> chatModelProvider,
                                  ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
                                  FinancialNewsRagService ragService,
                                  MarketDataIngestionService ingestionService,
                                  BarSeriesMapper barSeriesMapper,
-                                 TechnicalIndicatorEngine indicatorEngine) {
+                                 TechnicalIndicatorEngine indicatorEngine,
+                                 ObjectProvider<com.tem.spring.ai.repository.UserQueryRepository> userQueryRepositoryProvider) {
         this.ragService = ragService;
         this.ingestionService = ingestionService;
         this.barSeriesMapper = barSeriesMapper;
         this.indicatorEngine = indicatorEngine;
+        this.userQueryRepositoryProvider = userQueryRepositoryProvider;
 
         ChatClient client = null;
         try {
@@ -76,6 +79,7 @@ public class AiResearchChatService {
     }
 
     public AiResearchChatResponse processResearchChat(AiResearchChatRequest req) {
+        long startTime = System.currentTimeMillis();
         String prompt = req.getPrompt() != null ? req.getPrompt().trim() : "";
         String symbol = (req.getSymbol() != null && !req.getSymbol().isBlank())
                 ? req.getSymbol().toUpperCase() : "BTCUSDT";
@@ -103,7 +107,10 @@ public class AiResearchChatService {
 
                 if (llmReply != null && !llmReply.isBlank()) {
                     log.info("[AiResearchChat] ✅ LLM 응답 생성 완료 ({}자)", llmReply.length());
-                    return buildResponse(llmReply, convId, symbol, req, quant, news);
+                    AiResearchChatResponse resp = buildResponse(llmReply, convId, symbol, req, quant, news);
+                    saveQueryAuditLog(convId, symbol, prompt, llmReply, resp.getIntentVerdict(),
+                            resp.getEntryQualityScore(), marketContext, System.currentTimeMillis() - startTime, false);
+                    return resp;
                 }
                 log.warn("[AiResearchChat] LLM 이 빈 응답을 반환하여 폴백 엔진으로 전환합니다.");
             } catch (Exception e) {
@@ -114,7 +121,36 @@ public class AiResearchChatService {
         }
 
         // 3. LLM 사용 불가 시 정량 데이터 기반 폴백 리포트
-        return generateInstitutionalQuantReport(symbol, prompt, req, quant, news);
+        AiResearchChatResponse fallbackResp = generateInstitutionalQuantReport(symbol, prompt, req, quant, news);
+        saveQueryAuditLog(convId, symbol, prompt, fallbackResp.getReply(), fallbackResp.getIntentVerdict(),
+                fallbackResp.getEntryQualityScore(), marketContext, System.currentTimeMillis() - startTime, true);
+        return fallbackResp;
+    }
+
+    private void saveQueryAuditLog(String convId, String symbol, String prompt, String reply, String verdict,
+                                   Integer score, String ragContext, long durationMs, boolean isFallback) {
+        try {
+            var repo = userQueryRepositoryProvider != null ? userQueryRepositoryProvider.getIfAvailable() : null;
+            if (repo != null) {
+                com.tem.spring.ai.entity.UserQueryEntity entity = com.tem.spring.ai.entity.UserQueryEntity.builder()
+                        .conversationId(convId)
+                        .symbol(symbol)
+                        .prompt(prompt)
+                        .llmResponse(reply)
+                        .intentVerdict(verdict)
+                        .entryQualityScore(score)
+                        .ragContext(ragContext)
+                        .responseTimeMs(durationMs)
+                        .isFallback(isFallback)
+                        .createdAt(java.time.LocalDateTime.now())
+                        .build();
+                repo.save(entity);
+                log.info("[AiResearchChat] 💾 Saved user query audit log to MySQL (ID: {}, Symbol: {}, Duration: {}ms, Fallback: {})",
+                        entity.getId(), symbol, durationMs, isFallback);
+            }
+        } catch (Exception e) {
+            log.warn("[AiResearchChat] Failed to save query audit log: {}", e.getMessage());
+        }
     }
 
     // ---------------------------------------------------------------------

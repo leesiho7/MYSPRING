@@ -22,14 +22,14 @@ public class RateLimitService {
 
     public RateLimitService(
             @Value("${trading.rate-limit.enabled:true}") String enabledStr,
-            @Value("${trading.rate-limit.daily-limit:3}") String dailyLimitStr) {
+            @Value("${trading.rate-limit.daily-limit:1000}") String dailyLimitStr) {
         boolean parsedEnabled = true;
         if (enabledStr != null && !enabledStr.isBlank()) {
             parsedEnabled = Boolean.parseBoolean(enabledStr.trim());
         }
         this.enabled = parsedEnabled;
 
-        int parsedLimit = 3;
+        int parsedLimit = 1000;
         if (dailyLimitStr != null && !dailyLimitStr.isBlank()) {
             try {
                 parsedLimit = Integer.parseInt(dailyLimitStr.trim());

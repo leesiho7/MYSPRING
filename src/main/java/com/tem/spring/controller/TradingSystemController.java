@@ -30,6 +30,10 @@ public class TradingSystemController {
     private final OllamaMarketAgentService ollamaService;
     private final SignalAggregatorService aggregatorService;
     private final com.tem.spring.ai.service.AiResearchChatService researchChatService;
+    private final org.springframework.beans.factory.ObjectProvider<org.springframework.ai.vectorstore.VectorStore> vectorStoreProvider;
+    private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.repository.UserQueryRepository> userQueryRepositoryProvider;
+    private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.service.ProactiveNewsWarmupBatchService> warmupBatchServiceProvider;
+    private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.service.BrightDataNewsScraperService> brightDataNewsScraperServiceProvider;
 
     /**
      * 1. OpenBB 스타일 데이터 수집 조회 API
@@ -131,4 +135,147 @@ public class TradingSystemController {
         String generation = researchChatService.generateSimpleResponse(message);
         return ResponseEntity.ok(java.util.Map.of("message", message, "generation", generation));
     }
+
+    /**
+     * 9. [vmstore 직접 조회] VectorStore 시맨틱 유사도 검색 API
+     */
+    @GetMapping("/ai/vectorstore/search")
+    public ResponseEntity<java.util.Map<String, Object>> searchVectorStore(
+            @RequestParam(defaultValue = "비트코인") String query,
+            @RequestParam(defaultValue = "0.0") double threshold,
+            @RequestParam(defaultValue = "10") int limit) {
+        org.springframework.ai.vectorstore.VectorStore vs = vectorStoreProvider.getIfAvailable();
+        if (vs == null) {
+            return ResponseEntity.ok(java.util.Map.of(
+                    "status", "OFFLINE",
+                    "message", "VectorStore bean is not available",
+                    "results", java.util.List.of()
+            ));
+        }
+
+        try {
+            org.springframework.ai.vectorstore.SearchRequest request = org.springframework.ai.vectorstore.SearchRequest.query(query)
+                    .withSimilarityThreshold(threshold)
+                    .withTopK(limit);
+
+            java.util.List<org.springframework.ai.document.Document> docs = vs.similaritySearch(request);
+
+            java.util.List<java.util.Map<String, Object>> formatted = docs.stream().map(doc -> {
+                java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+                map.put("id", doc.getId());
+                map.put("content", doc.getContent());
+                map.put("metadata", doc.getMetadata());
+                return map;
+            }).toList();
+
+            return ResponseEntity.ok(java.util.Map.of(
+                    "status", "ONLINE",
+                    "query", query,
+                    "threshold", threshold,
+                    "resultCount", formatted.size(),
+                    "documents", formatted
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(java.util.Map.of(
+                    "status", "ERROR",
+                    "error", e.getMessage(),
+                    "query", query
+            ));
+        }
+    }
+
+    /**
+     * 10. [vmstore 상태 조회] VectorStore 상태 및 통계 API
+     */
+    @GetMapping("/ai/vectorstore/stats")
+    public ResponseEntity<java.util.Map<String, Object>> getVectorStoreStats() {
+        org.springframework.ai.vectorstore.VectorStore vs = vectorStoreProvider.getIfAvailable();
+        return ResponseEntity.ok(java.util.Map.of(
+                "status", vs != null ? "ACTIVE" : "INACTIVE",
+                "vectorStoreType", vs != null ? vs.getClass().getSimpleName() : "None",
+                "embeddingModel", "bge-m3:latest (1024-dimension)",
+                "chromaPort", 8000,
+                "timestamp", java.time.Instant.now().toString()
+        ));
+    }
+
+    /**
+     * 11. [MySQL 유저 질문 로그 조회] 유저 질문 및 RAG/AI 답변 감사 이력 API
+     */
+    @GetMapping("/ai/queries/recent")
+    public ResponseEntity<List<com.tem.spring.ai.entity.UserQueryEntity>> getRecentUserQueries(
+            @RequestParam(required = false) String symbol) {
+        var repo = userQueryRepositoryProvider.getIfAvailable();
+        if (repo == null) {
+            return ResponseEntity.ok(List.of());
+        }
+        if (symbol != null && !symbol.isBlank()) {
+            return ResponseEntity.ok(repo.findBySymbolOrderByCreatedAtDesc(symbol.toUpperCase()));
+        }
+        return ResponseEntity.ok(repo.findTop50ByOrderByCreatedAtDesc());
+    }
+
+    /**
+     * 12. [인기 관심 키워드 분석] 유저들이 가장 많이 질문한 종목/키워드 통계 API
+     */
+    @GetMapping("/ai/queries/popular")
+    public ResponseEntity<List<java.util.Map<String, Object>>> getPopularKeywords() {
+        var repo = userQueryRepositoryProvider.getIfAvailable();
+        if (repo == null) {
+            return ResponseEntity.ok(List.of());
+        }
+        List<Object[]> raw = repo.findPopularKeywords();
+        List<java.util.Map<String, Object>> result = raw.stream().map(row -> java.util.Map.of(
+                "symbol", row[0] != null ? row[0] : "UNKNOWN",
+                "queryCount", row[1] != null ? row[1] : 0
+        )).toList();
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 13. [사전 배치 크롤러 트리거] 유저 질문 분석 기반 타겟 발굴 및 vmstore 지식 사전 예열(Warmup)
+     */
+    @PostMapping("/ai/batch/warmup")
+    public ResponseEntity<java.util.Map<String, Object>> triggerBatchWarmup(
+            @RequestParam(required = false) List<String> symbols) {
+        var warmupService = warmupBatchServiceProvider.getIfAvailable();
+        if (warmupService == null) {
+            return ResponseEntity.ok(java.util.Map.of("status", "UNAVAILABLE", "message", "ProactiveNewsWarmupBatchService not initialized"));
+        }
+
+        if (symbols != null && !symbols.isEmpty()) {
+            return ResponseEntity.ok(warmupService.warmupSpecificSymbols(symbols));
+        }
+        return ResponseEntity.ok(warmupService.warmupAllTargets());
+    }
+
+    /**
+     * 14. [배치 크롤러 통계] 사전 예열 이력 및 API 비용 절감 통계
+     */
+    @GetMapping("/ai/batch/status")
+    public ResponseEntity<java.util.Map<String, Object>> getBatchWarmupStatus() {
+        var warmupService = warmupBatchServiceProvider.getIfAvailable();
+        if (warmupService == null) {
+            return ResponseEntity.ok(java.util.Map.of("status", "UNAVAILABLE"));
+        }
+        return ResponseEntity.ok(warmupService.getWarmupStats());
+    }
+
+    /**
+     * 15. [3번 & 4번 기능] 멀티채널 실시간 뉴스 피드 및 AI 호재/악재 감성 분석 조회 API
+     */
+    @GetMapping("/market/news/channel")
+    public ResponseEntity<List<com.tem.spring.ai.dto.RichNewsItemDto>> getMultiChannelNews(
+            @RequestParam(defaultValue = "ALL") String channel,
+            @RequestParam(required = false) String symbol) {
+        var scraper = brightDataNewsScraperServiceProvider.getIfAvailable();
+        if (scraper == null) {
+            return ResponseEntity.ok(List.of());
+        }
+        return ResponseEntity.ok(scraper.getRichNewsFeed(channel, symbol));
+    }
 }
+
+
+
+
