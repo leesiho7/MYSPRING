@@ -1,58 +1,60 @@
 server:
-  port: 8080
-
+  port: ${SERVER_PORT:8080}
 spring:
   main:
     allow-bean-definition-overriding: true
   application:
     name: trading-intelligence-system
-
   datasource:
-    url: jdbc:mysql://localhost:3306/springai?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 1234
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
-
   jpa:
-    database-platform: org.hibernate.dialect.MySQLDialect
+    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: update
     show-sql: false
     properties:
       hibernate:
         format_sql: false
-
-  # Spring AI Ollama Settings (Local LLM)
   ai:
     ollama:
-      base-url: http://localhost:11434
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         enabled: true
+        model: ${CHAT_MODEL:qwen2.5:14b}
         options:
-          model: llama3:latest
-          temperature: 0.2
-    # Spring AI ChromaDB Vector Store
+          model: ${CHAT_MODEL:qwen2.5:14b}
+          temperature: 0.1
+      embedding:
+        enabled: true
+        model: ${EMBEDDING_MODEL:bge-m3:latest}
+        options:
+          model: ${EMBEDDING_MODEL:bge-m3:latest}
     vectorstore:
       chroma:
         client:
-          host: http://localhost
-          port: 8000
-        collection-name: financial-market-news
+          host: ${CHROMADB_HOST:http://localhost}
+          port: ${CHROMADB_PORT:8000}
+        collection-name: ${CHROMADB_COLLECTION:financial-market-news}
         initialize-schema: false
-
-# Custom Trading System Settings
 trading:
   scoring:
     quant-weight: 0.6
     qual-weight: 0.4
     divergence-threshold: 0.5
-
-# Bright Data Web Intelligence & Realtime Scraping API
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    daily-limit: ${RATE_LIMIT_DAILY_LIMIT:1000}
 brightdata:
-  api-key: 4a62ad76-a8e4-46cb-9cb0-deaf9e6587a7
-  base-url: https://api.brightdata.com
-  enabled: true
-
+  api-key: ${BRIGHTDATA_API_KEY:4a62ad76-a8e4-46cb-9cb0-deaf9e6587a7}
+  base-url: ${BRIGHTDATA_BASE_URL:https://api.brightdata.com}
+  enabled: ${BRIGHTDATA_ENABLED:true}
+rag:
+  vectorstore:
+    similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.7}
+    top-k: ${RAG_TOP_K:3}
