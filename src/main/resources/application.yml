@@ -1,22 +1,19 @@
 server:
   port: ${SERVER_PORT:8080}
-
 spring:
   main:
     allow-bean-definition-overriding: true
   application:
     name: trading-intelligence-system
-
   # MySQL Database Configuration (현재 H2로 대체)
   datasource:
     url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
-    password: 
+    password:
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
-
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
@@ -25,7 +22,6 @@ spring:
     properties:
       hibernate:
         format_sql: false
-
   # Spring AI Ollama Settings (Local LLM / Nosana Remote GPU Node)
   ai:
     ollama:
@@ -47,27 +43,4 @@ spring:
         client:
           host: ${CHROMADB_HOST:http://localhost}
           port: ${CHROMADB_PORT:8000}
-        collection-name: ${CHROMADB_COLLECTION:financial-market-news}
-        initialize-schema: false
-
-# Custom Trading System Settings
-trading:
-  scoring:
-    quant-weight: 0.6
-    qual-weight: 0.4
-    divergence-threshold: 0.5
-  rate-limit:
-    enabled: ${RATE_LIMIT_ENABLED:true}
-    daily-limit: ${RATE_LIMIT_DAILY_LIMIT:1000} # 일일 무료 AI 분석 횟수 제한 (개발/테스트 1000회)
-
-# Bright Data Web Intelligence & Realtime Scraping API
-brightdata:
-  api-key: ${BRIGHTDATA_API_KEY:4a62ad76-a8e4-46cb-9cb0-deaf9e6587a7}
-  base-url: ${BRIGHTDATA_BASE_URL:https://api.brightdata.com}
-  enabled: ${BRIGHTDATA_ENABLED:true}
-
-# RAG & VectorStore Hybrid Search Configuration
-rag:
-  vectorstore:
-    similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.7}
-    top-k: ${RAG_TOP_K:3}
+        collection-name:
