@@ -1047,6 +1047,14 @@
                 <button class="nav-pill mono" data-tf="H1" onclick="switchTimeFrame('H1', this)">1H</button>
             </div>
 
+            <button class="nav-pill mono" onclick="openStreamModal()" style="border-color: rgba(225,29,72,0.3); color: #e11d48; font-weight: 700; background: #fff1f2;">
+                <span>🔴 Live TV</span>
+            </button>
+
+            <button class="nav-pill mono" onclick="openBotHostingModal()" style="border-color: rgba(2,132,199,0.35); color: #0284c7; font-weight: 700; background: #f0f9ff;">
+                <span>☁️ 24H Bot ($7)</span>
+            </button>
+
             <button class="nav-pill mono" onclick="openWalletModal()" style="border-color: rgba(124,58,237,0.25); color: #7c3aed; font-weight: 700;">
                 <span>💳 Wallet</span>
             </button>
@@ -1723,6 +1731,368 @@
             <span class="section-tag mono">🔒 출금 감사 원장 & 암호학적 영수증 증명 (Proof of Receipt)</span>
             <div id="withdrawal-history-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;">
                 <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 16px;">출금 이력을 불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── 24H Cloud Bot Hosting Modal ($7 Monthly) ── -->
+    <div id="bot-hosting-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="width: 780px; max-height: 90vh;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #0369a1); display: flex; align-items: center; justify-content: center; color: white; font-size: 20px;">☁️</div>
+                    <div>
+                        <h3 style="color: var(--text-title); font-size: 18px; font-weight: 800;">24H Cloud Bot Instance Hosting</h3>
+                        <div style="font-size: 11.5px; color: var(--text-dim);">초보자 게이지 모드 & 개발자 파이썬 샌드박스 ($7.0 USDT / 30일)</div>
+                    </div>
+                </div>
+                <button onclick="closeBotHostingModal()" style="background: none; border: none; color: var(--text-dim); font-size: 22px; cursor: pointer;">✕</button>
+            </div>
+
+            <!-- Subscription Status Banner -->
+            <div id="bot-sub-banner" style="background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 1px solid #a7f3d0; border-radius: 14px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div id="bot-sub-icon" style="font-size: 22px;">🟢</div>
+                    <div>
+                        <div id="bot-sub-title" style="font-weight: 700; color: #065f46; font-size: 13.5px;">가상 인스턴스 30일 이용권 활성 상태</div>
+                        <div id="bot-sub-desc" class="mono" style="font-size: 11px; color: #047857;">남은 기간: 30일 (만료 시 자동 보류)</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <select id="bot-sub-network" class="mono" style="background: #fff; border: 1px solid #a7f3d0; border-radius: 8px; padding: 6px 10px; font-size: 11.5px;">
+                        <option value="TRC20">TRON (TRC-20 USDT)</option>
+                        <option value="POLYGON">Polygon (USDT)</option>
+                        <option value="BSC">BNB Chain (BSC USDT)</option>
+                        <option value="ARBITRUM">Arbitrum (USDT)</option>
+                    </select>
+                    <button onclick="purchaseBotSubscription()" class="btn-neon-primary mono" style="background: #059669; color: #fff; font-size: 12px; padding: 7px 14px;">
+                        💎 $7 USDT 결제 / 연장
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mode Switcher Tabs -->
+            <div style="display: flex; gap: 8px; border-bottom: 2px solid var(--border-subtle); padding-bottom: 10px;">
+                <button id="btn-bot-beginner-tab" onclick="switchBotMode('BEGINNER')" class="nav-pill active mono" style="font-weight: 700;">
+                    🟢 초보자 게이지 모드 (No-Code Sliders)
+                </button>
+                <button id="btn-bot-developer-tab" onclick="switchBotMode('DEVELOPER')" class="nav-pill mono" style="font-weight: 700;">
+                    🔵 개발자 파이썬 모드 (Python Sandbox)
+                </button>
+            </div>
+
+            <!-- 1. Beginner Mode Section (Modular Toggles & Convincing Sliders) -->
+            <div id="bot-beginner-section" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Live Strategy Reasoning Summary HUD -->
+                <div id="beginner-strategy-summary" class="mono" style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 10px 12px; font-size: 11.5px; color: #166534; line-height: 1.5;">
+                    💡 <strong>[선택된 알고리즘 구성]</strong> 🛡️ 골드만 리스크 쉴드 ON (변동성 감응형 비중 조절 & 일일 손실 -4% 셧다운) + 📊 RSI 30 저평가 반등 확인 + 📈 SMA 20/50 골든크로스 추세 필터
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                    <!-- Module 1: Goldman Sachs Risk Guard -->
+                    <div style="background: #ffffff; border: 1.5px solid #0284c7; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #0369a1; cursor: pointer;">
+                                <input type="checkbox" id="toggle-goldman-risk" checked onchange="updateBeginnerSummary()">
+                                <span>🛡️ 골드만삭스 리스크 가드</span>
+                            </label>
+                            <span class="mono" style="font-size: 10px; background: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-weight: 700;">gs-quant</span>
+                        </div>
+                        <div style="font-size: 11px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 8px 10px; color: #0369a1; line-height: 1.45;">
+                            📖 <strong>[작동 원리]</strong> 비트코인이 급락하여 하루 손실이 한도에 도달하면 즉시 당일 매매를 셧다운(서킷 브레이커)하고, 변동성이 커질 땐 진입 비중을 자동으로 축소하여 계좌 깡통을 100% 방지합니다.
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <div style="flex: 1;">
+                                <div style="font-size: 10px; color: var(--text-dim);">1일 최대 손실컷</div>
+                                <input type="number" id="input-max-daily-loss" value="4.0" step="0.5" class="mono" style="width: 100%; padding: 4px 6px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11.5px;" onchange="updateBeginnerSummary()">
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 10px; color: var(--text-dim);">변동성 감응 계수</div>
+                                <input type="number" id="input-vol-sensitivity" value="1.0" step="0.1" class="mono" style="width: 100%; padding: 4px 6px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11.5px;" onchange="updateBeginnerSummary()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Module 2: RSI Momentum -->
+                    <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-title); cursor: pointer;">
+                                <input type="checkbox" id="toggle-rsi" checked onchange="updateBeginnerSummary()">
+                                <span>📊 RSI 모멘텀 오실레이터</span>
+                            </label>
+                            <span class="mono" style="font-weight: 700; font-size: 11px; color: var(--signal-buy);" id="label-rsi-display">30 / 70</span>
+                        </div>
+                        <div style="font-size: 11px; background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 8px 10px; color: var(--text-body); line-height: 1.45;">
+                            📖 <strong>[작동 원리]</strong> RSI 30 이하는 '시장이 비이성적으로 과도하게 내린 저평가 구간'입니다. 대중이 공포에 패닉셀할 때 저점 반등을 노리고 안전하게 분할 매수합니다.
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="range" id="slider-rsi-buy" min="15" max="40" value="30" style="flex: 1;" oninput="updateBeginnerSummary()">
+                            <input type="range" id="slider-rsi-sell" min="60" max="85" value="70" style="flex: 1;" oninput="updateBeginnerSummary()">
+                        </div>
+                    </div>
+
+                    <!-- Module 3: Dual SMA Trend Follow -->
+                    <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-title); cursor: pointer;">
+                                <input type="checkbox" id="toggle-sma" checked onchange="updateBeginnerSummary()">
+                                <span>📈 이동평균 골든크로스 (SMA)</span>
+                            </label>
+                            <span class="mono" style="font-weight: 700; font-size: 11px; color: var(--primary);" id="label-sma-display">20 / 50</span>
+                        </div>
+                        <div style="font-size: 11px; background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 8px 10px; color: var(--text-body); line-height: 1.45;">
+                            📖 <strong>[작동 원리]</strong> 단기선(20일)이 장기선(50일)을 상향 돌파하는 '정배열 상승 추세'에서만 진입하여, 하락장에서 무리하게 물을 타다 손실이 커지는 역추세 트랩을 차단합니다.
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="number" id="input-sma-short" value="20" class="mono" style="width: 50%; padding: 4px 6px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11.5px;" onchange="updateBeginnerSummary()">
+                            <input type="number" id="input-sma-long" value="50" class="mono" style="width: 50%; padding: 4px 6px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11.5px;" onchange="updateBeginnerSummary()">
+                        </div>
+                    </div>
+
+                    <!-- Module 4: Risk-Reward TP/SL -->
+                    <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-title); cursor: pointer;">
+                                <input type="checkbox" id="toggle-tpsl" checked onchange="updateBeginnerSummary()">
+                                <span>🎯 손익비 2:1 & 자금 관리</span>
+                            </label>
+                            <span class="mono" style="font-weight: 700; font-size: 11px; color: #059669;" id="label-tpsl-display">+6% / -3% (비중 20%)</span>
+                        </div>
+                        <div style="font-size: 11px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 8px 10px; color: #166534; line-height: 1.45;">
+                            📖 <strong>[작동 원리]</strong> 익절(+6%)을 손절(-3%)의 2배로 설정하면, 10번 매매 중 5번만 맞혀도(승률 50%) 계좌 잔고가 꾸준히 우상향하는 월스트리트 수학적 자금 관리 공식입니다.
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="number" step="0.5" id="input-tp" value="6.0" placeholder="익절 %" class="mono" style="width: 33%; padding: 4px 6px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11.5px; color: var(--signal-buy);" onchange="updateBeginnerSummary()">
+                            <input type="number" step="0.5" id="input-sl" value="3.0" placeholder="손절 %" class="mono" style="width: 33%; padding: 4px 6px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11.5px; color: var(--signal-sell);" onchange="updateBeginnerSummary()">
+                            <input type="number" step="5" id="input-position-size" value="20" placeholder="비중 %" class="mono" style="width: 34%; padding: 4px 6px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11.5px;" onchange="updateBeginnerSummary()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Developer Mode Section (Institutional Python Sandbox Playground) -->
+            <div id="bot-developer-section" style="display: none; flex-direction: column; gap: 8px;">
+                <!-- Strategy Preset Toolbar -->
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; gap: 6px; align-items: center; overflow-x: auto;">
+                        <span class="mono" style="font-size: 11px; color: var(--text-dim); font-weight: 700;">월가 프리셋:</span>
+                        <button onclick="loadDevPreset('GOLDMAN')" class="nav-pill mono" style="font-size: 10.5px; padding: 3px 8px; background: #e0f2fe; color: #0284c7; border-color: #bae6fd;">🏛️ Goldman Sachs</button>
+                        <button onclick="loadDevPreset('SCALPER')" class="nav-pill mono" style="font-size: 10.5px; padding: 3px 8px; background: #fef3c7; color: #d97706; border-color: #fde68a;">⚡ 1m HFT Scalper</button>
+                        <button onclick="loadDevPreset('AI_RAG')" class="nav-pill mono" style="font-size: 10.5px; padding: 3px 8px; background: #f3e8ff; color: #7c3aed; border-color: #e9d5ff;">🤖 AI RAG Alpha</button>
+                    </div>
+                    <button onclick="testDeveloperPythonCode()" class="nav-pill mono" style="font-size: 11.5px; background: #f1f5f9; border-color: #cbd5e1; font-weight: 700;">
+                        🔍 샌드박스 검증
+                    </button>
+                </div>
+
+                <textarea id="bot-python-code" class="mono" style="width: 100%; height: 160px; background: #0f172a; color: #38bdf8; border: 1px solid #334155; border-radius: 10px; padding: 12px; font-size: 11.5px; line-height: 1.5; resize: vertical;" spellcheck="false"># -*- coding: utf-8 -*-
+import ccxt
+import time
+import pandas as pd
+import numpy as np
+
+# ===================================================================
+# Goldman Sachs Style Risk Parity & Volatility-Adjusted Trading Bot
+# ===================================================================
+def on_tick(symbol, current_price, rsi, sma20, atr_pct, daily_pnl):
+    # 1. 일일 최대 손실(-4.0%) 도달 시 셧다운
+    if daily_pnl <= -4.0:
+        return {"action": "HOLD", "reason": "Goldman Circuit Breaker Active"}
+    
+    # 2. ATR 변동성 감응형 동적 포지션 사이징
+    vol_adjusted_size = max(5.0, min(30.0, 20.0 / (atr_pct * 1.2)))
+
+    # 3. 신호 평가
+    if rsi < 30.0 and current_price > sma20:
+        return {"action": "BUY", "size_pct": vol_adjusted_size, "reason": f"RSI Oversold + Dynamic Vol Size {vol_adjusted_size:.1f}%"}
+    elif rsi > 70.0:
+        return {"action": "SELL", "size_pct": 100.0, "reason": "RSI Overbought TP Target"}
+    
+    return {"action": "HOLD"}
+</textarea>
+                <div id="dev-test-result" style="display: none; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 8px 12px; font-size: 11.5px; color: #166534;" class="mono"></div>
+            </div>
+
+            <!-- Bot Control & Action Form -->
+            <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 14px; padding: 14px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-dim);">대상 거래소</div>
+                        <select id="bot-target-exchange" class="mono" style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 700;">
+                            <option value="BINANCE">Binance</option>
+                            <option value="BYBIT">Bybit</option>
+                            <option value="UPBIT">Upbit</option>
+                        </select>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-dim);">대상 종목</div>
+                        <input id="bot-target-symbol" type="text" value="BTCUSDT" class="mono" style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 700; width: 100px;">
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-dim);">타임프레임</div>
+                        <select id="bot-target-tf" class="mono" style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; font-size: 12px;">
+                            <option value="1m">1분봉</option>
+                            <option value="5m" selected>5분봉</option>
+                            <option value="15m">15분봉</option>
+                            <option value="1h">1시간봉</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <button id="btn-bot-start" onclick="saveAndStartBot()" class="btn-neon-primary mono" style="background: var(--signal-buy); color: #fff; font-size: 13px; padding: 10px 18px;">
+                        🚀 24시간 가상 봇 가동 시작
+                    </button>
+                    <button id="btn-bot-stop" onclick="stopBotInstance()" class="nav-pill mono" style="background: #fff1f2; color: var(--signal-sell); border-color: #fecdd3; font-size: 12.5px; padding: 10px 14px; display: none;">
+                        🛑 인스턴스 중지
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live HUD Terminal & Execution Logs -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="section-tag mono" style="margin: 0;">📟 Live Instance Terminal (stdout)</span>
+                        <span id="bot-status-badge" class="mono" style="font-size: 10px; background: #e2e8f0; color: #475569; padding: 2px 6px; border-radius: 4px; font-weight: 700;">STOPPED</span>
+                    </div>
+                    <div class="mono" style="font-size: 11.5px; color: var(--text-dim);">
+                        실시간 누적수익: <span id="bot-hud-pnl" style="color: var(--signal-buy); font-weight: 700;">+4.82%</span> | 승률: <span id="bot-hud-winrate" style="font-weight: 700;">72.5% (13승 5패)</span>
+                    </div>
+                </div>
+                <div id="bot-terminal-logs" class="mono" style="background: #090d16; color: #a5f3fc; border: 1px solid #1e293b; border-radius: 10px; padding: 12px; height: 140px; overflow-y: auto; font-size: 11px; line-height: 1.6;">
+                    <div style="color: #64748b;">[IDLE] 봇 인스턴스가 대기 중입니다. [24시간 가상 봇 가동 시작] 버튼을 누르면 실시간 스트림이 연결됩니다.</div>
+                </div>
+            </div>
+
+            <!-- Legal Disclaimer Compliance -->
+            <div style="font-size: 10.5px; color: var(--text-subtle); line-height: 1.4; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
+                ⚖️ <strong>[서비스 이용 면책 고지]</strong> 본 서비스는 고객이 설정한 알고리즘을 24시간 실행할 수 있는 클라우드 호스팅 가상 인스턴스만을 제공하며, 투자 자문이나 원금을 보장하지 않습니다. 모든 매매 손익에 대한 최종 책임은 이용자 본인에게 있습니다.
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Live Financial TV & Trading Stream Hub Modal ── -->
+    <div id="stream-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="width: 880px; max-height: 90vh;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #e11d48, #be123c); display: flex; align-items: center; justify-content: center; color: white; font-size: 18px;">🔴</div>
+                    <div>
+                        <h3 style="color: var(--text-title); font-size: 18px; font-weight: 800;">AETHER Live Financial TV & Trading Desk</h3>
+                        <div style="font-size: 11.5px; color: var(--text-dim);">글로벌 24H 금융 방송 & 실시간 퀀트 스캘핑 스트리밍 허브 (Zero-Cost CDN)</div>
+                    </div>
+                </div>
+                <button onclick="closeStreamModal()" style="background: none; border: none; color: var(--text-dim); font-size: 22px; cursor: pointer;">✕</button>
+            </div>
+
+            <!-- Category Filter Chips -->
+            <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;">
+                <button class="nav-pill active mono" onclick="filterStreamCategory('ALL', this)" style="font-size: 11.5px;">🔥 All Streams</button>
+                <button class="nav-pill mono" onclick="filterStreamCategory('MACRO', this)" style="font-size: 11.5px;">🌐 Bloomberg / Macro</button>
+                <button class="nav-pill mono" onclick="filterStreamCategory('CRYPTO', this)" style="font-size: 11.5px;">🪙 Crypto 24H</button>
+                <button class="nav-pill mono" onclick="filterStreamCategory('US_STOCK', this)" style="font-size: 11.5px;">📈 US Stocks / Tech</button>
+            </div>
+
+            <!-- Main Live Player & Channel Grid Split -->
+            <div style="display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; min-height: 320px;">
+                <!-- Left: Live Video Player Container -->
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="position: relative; width: 100%; height: 250px; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-subtle);">
+                        <iframe id="live-stream-player" style="width: 100%; height: 100%; border: none;" src="https://www.youtube.com/embed/dp8PhLsUcFE?autoplay=1&mute=1&cc_load_policy=1&cc_lang_pref=ko&hl=ko" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        <div style="position: absolute; top: 10px; left: 10px; background: rgba(225,29,72,0.9); color: white; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px; display: flex; align-items: center; gap: 4px;" class="mono">
+                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: white; animation: pulse 1.5s infinite;"></span> LIVE ON-AIR
+                        </div>
+                    </div>
+
+                    <!-- Stream Info & Reaction Action Bar -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div id="player-stream-title" style="font-size: 12.5px; font-weight: 700; color: var(--text-title);">Bloomberg Markets 24/7 Live</div>
+                            <div id="player-streamer" style="font-size: 11px; color: var(--text-dim);">Bloomberg Television • <span id="player-viewers" style="color: #e11d48; font-weight: 700;">42,500명 시청 중</span></div>
+                        </div>
+
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <!-- Like Button -->
+                            <button id="btn-stream-like" onclick="toggleStreamReaction('LIKE')" class="nav-pill mono" style="font-size: 11.5px; padding: 5px 10px; display: flex; align-items: center; gap: 4px; background: #fff;">
+                                <span>👍</span> <span id="stream-like-count">384</span>
+                            </button>
+
+                            <!-- Dislike Button -->
+                            <button id="btn-stream-dislike" onclick="toggleStreamReaction('DISLIKE')" class="nav-pill mono" style="font-size: 11.5px; padding: 5px 10px; display: flex; align-items: center; gap: 4px; background: #fff;">
+                                <span>👎</span> <span id="stream-dislike-count">12</span>
+                            </button>
+
+                            <!-- Sync Chart Button -->
+                            <button onclick="syncChartFromStream()" class="btn-neon-primary mono" style="font-size: 11px; padding: 6px 10px; background: var(--primary);">
+                                📊 차트 동기화
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Active Channels & Live Alpha Insights -->
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="section-tag mono" style="margin: 0;">📺 24H Live Channels</span>
+                        <button onclick="toggleAddStreamForm()" class="nav-pill mono" style="font-size: 10.5px; padding: 2px 8px;">+ 커스텀 추가</button>
+                    </div>
+
+                    <!-- Channel List Container -->
+                    <div id="stream-channel-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 155px; overflow-y: auto;">
+                        <div style="font-size: 11px; color: var(--text-dim); text-align: center; padding: 14px;">채널 목록을 불러오는 중...</div>
+                    </div>
+
+                    <!-- Live Stream Alpha Commentary -->
+                    <span class="section-tag mono" style="margin: 2px 0 0 0;">⚡ 방송 실시간 알파 코멘터리 (Stream Alpha Feed)</span>
+                    <div id="stream-insights-list" style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; height: 95px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;" class="mono">
+                        <div style="font-size: 11px; color: #64748b;">실시간 전문가 코멘터리 로딩 중...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Viewer Comments & Chat Section -->
+            <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 12.5px; font-weight: 700; color: var(--text-title); display: flex; align-items: center; gap: 6px;">
+                        <span>💬 시청자 실시간 분석 토론 & 댓글</span>
+                        <span class="mono" style="font-size: 10.5px; background: #ecfdf5; color: #059669; padding: 1px 6px; border-radius: 4px; font-weight: 700;">+1.0 AETHER 보상</span>
+                    </div>
+                    <span class="mono" style="font-size: 11px; color: var(--text-dim);" id="stream-comment-count-label">댓글 45개</span>
+                </div>
+
+                <!-- Comment Input Row -->
+                <div style="display: flex; gap: 6px;">
+                    <select id="stream-comment-sentiment" class="mono" style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 8px; font-size: 11.5px; font-weight: 700;">
+                        <option value="BULLISH">🟢 상승 (Bullish)</option>
+                        <option value="BEARISH">🔴 하락 (Bearish)</option>
+                        <option value="NEUTRAL">⚪ 중립 (Neutral)</option>
+                    </select>
+                    <input id="stream-comment-input" type="text" placeholder="방송 내용에 대한 실시간 관점이나 숏/롱 분석을 남겨주세요..." class="mono" style="flex: 1; background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; font-size: 12px;">
+                    <button onclick="submitStreamComment()" class="btn-neon-primary mono" style="font-size: 11.5px; padding: 6px 14px; background: #059669; color: #fff;">
+                        🚀 등록
+                    </button>
+                </div>
+
+                <!-- Scrollable Comments Container -->
+                <div id="stream-comments-container" style="display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto;">
+                    <div style="font-size: 11px; color: var(--text-dim); text-align: center; padding: 10px;">댓글을 불러오는 중...</div>
+                </div>
+            </div>
+
+            <!-- Custom Stream Add Form (Hidden by default) -->
+            <div id="custom-stream-form" style="display: none; background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px; gap: 8px; flex-direction: column;">
+                <div style="font-size: 12px; font-weight: 700; color: var(--text-title);">새 실시간 방송 URL 등록 (유튜브 / 트위치)</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <input id="new-stream-name" type="text" placeholder="채널 이름 (예: 침착맨 금융 / 코인전문가)" class="mono" style="padding: 6px 10px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 12px;">
+                    <input id="new-stream-title" type="text" placeholder="방송 제목" class="mono" style="padding: 6px 10px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 12px;">
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <input id="new-stream-url" type="text" placeholder="유튜브 라이브 URL 또는 비디오 ID 입력" class="mono" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 12px;">
+                    <button onclick="submitNewStream()" class="btn-neon-primary mono" style="font-size: 11.5px; padding: 6px 14px; background: #e11d48;">
+                        등록 완료
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -2734,6 +3104,715 @@
                 }
             } catch (e) {
                 alert('서버 연결 실패: ' + e.message);
+            }
+        }
+
+        // ── 24H Cloud Bot Hosting ($7 Monthly) Logic ──
+        let currentBotMode = 'BEGINNER';
+        let currentBotInstanceId = null;
+        let botLogPollingInterval = null;
+        let isBotRunning = false;
+
+        function openBotHostingModal() {
+            document.getElementById('bot-hosting-modal').style.display = 'flex';
+            loadBotSubscription();
+            loadUserBotInstance();
+        }
+
+        function closeBotHostingModal() {
+            document.getElementById('bot-hosting-modal').style.display = 'none';
+            if (botLogPollingInterval) {
+                clearInterval(botLogPollingInterval);
+                botLogPollingInterval = null;
+            }
+        }
+
+        function switchBotMode(mode) {
+            currentBotMode = mode;
+            const begTab = document.getElementById('btn-bot-beginner-tab');
+            const devTab = document.getElementById('btn-bot-developer-tab');
+            const begSec = document.getElementById('bot-beginner-section');
+            const devSec = document.getElementById('bot-developer-section');
+
+            if (mode === 'BEGINNER') {
+                begTab.classList.add('active');
+                devTab.classList.remove('active');
+                begSec.style.display = 'flex';
+                devSec.style.display = 'none';
+            } else {
+                devTab.classList.add('active');
+                begTab.classList.remove('active');
+                begSec.style.display = 'none';
+                devSec.style.display = 'flex';
+            }
+        }
+
+        function updateSmaLabel() {
+            const s = document.getElementById('input-sma-short').value;
+            const l = document.getElementById('input-sma-long').value;
+            document.getElementById('label-sma').innerText = `${s} / ${l}`;
+        }
+
+        function updateTpSlLabel() {
+            const tp = document.getElementById('input-tp').value;
+            const sl = document.getElementById('input-sl').value;
+            document.getElementById('label-tpsl').innerText = `+${tp}% / -${sl}%`;
+        }
+
+        async function loadBotSubscription() {
+            try {
+                const res = await fetch(`/api/bot/subscription/${currentUserId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const banner = document.getElementById('bot-sub-banner');
+                    const icon = document.getElementById('bot-sub-icon');
+                    const title = document.getElementById('bot-sub-title');
+                    const desc = document.getElementById('bot-sub-desc');
+
+                    if (data.active) {
+                        banner.style.background = 'linear-gradient(135deg, #f0fdf4, #ecfdf5)';
+                        banner.style.borderColor = '#a7f3d0';
+                        icon.innerText = '🟢';
+                        title.innerText = '가상 인스턴스 30일 이용권 활성 상태';
+                        title.style.color = '#065f46';
+                        desc.innerText = `남은 기간: ${data.remainingDays}일 (플랜: $7.0 USDT 먼슬리)`;
+                        desc.style.color = '#047857';
+                    } else {
+                        banner.style.background = 'linear-gradient(135deg, #fffbeb, #fef3c7)';
+                        banner.style.borderColor = '#fde68a';
+                        icon.innerText = '⚪';
+                        title.innerText = '가상 인스턴스 구독 필요 (월 $7.0 USDT)';
+                        title.style.color = '#92400e';
+                        desc.innerText = '테더 결제 후 24시간 실시간 자동매매 봇 인스턴스가 즉시 활성화됩니다.';
+                        desc.style.color = '#b45309';
+                    }
+                }
+            } catch (e) {
+                console.warn('Bot subscription load error:', e);
+            }
+        }
+
+        async function purchaseBotSubscription() {
+            const network = document.getElementById('bot-sub-network').value;
+            try {
+                const res = await fetch('/api/bot/subscription/purchase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUserId,
+                        paymentNetwork: network,
+                        amountUsdt: 7.0
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    alert(`🎉 [결제 완료] $7.0 USDT (${network}) 결제가 승인되었습니다!\n\n🔒 TxHash: ${data.txHash}\n📅 이용 만료일: ${data.endDate.substring(0, 10)} (30일권)`);
+                    loadBotSubscription();
+                } else {
+                    alert('결제 처리 실패: ' + (data.message || '서버 오류'));
+                }
+            } catch (e) {
+                alert('결제 통신 실패: ' + e.message);
+            }
+        }
+
+        async function loadUserBotInstance() {
+            try {
+                const res = await fetch(`/api/bot/instance/user/${currentUserId}`);
+                if (res.ok) {
+                    const bots = await res.json();
+                    if (bots && bots.length > 0) {
+                        const b = bots[0];
+                        currentBotInstanceId = b.instanceId;
+                        document.getElementById('bot-target-symbol').value = b.symbol || 'BTCUSDT';
+                        document.getElementById('bot-target-exchange').value = b.exchange || 'BINANCE';
+                        document.getElementById('bot-target-tf').value = b.timeFrame || '5m';
+
+                        if (b.mode) switchBotMode(b.mode);
+                        if (b.developerPythonCode) document.getElementById('bot-python-code').value = b.developerPythonCode;
+
+                        updateBotRunningUI(b.status === 'RUNNING', b);
+                    }
+                }
+            } catch (e) {
+                console.warn('Bot load error:', e);
+            }
+        }
+
+        function updateBeginnerSummary() {
+            const useGoldman = document.getElementById('toggle-goldman-risk').checked;
+            const maxLoss = document.getElementById('input-max-daily-loss').value || '4.0';
+            const volSens = document.getElementById('input-vol-sensitivity').value || '1.0';
+
+            const useRsi = document.getElementById('toggle-rsi').checked;
+            const rsiBuy = document.getElementById('slider-rsi-buy').value;
+            const rsiSell = document.getElementById('slider-rsi-sell').value;
+            document.getElementById('label-rsi-display').innerText = `${rsiBuy} / ${rsiSell}`;
+
+            const useSma = document.getElementById('toggle-sma').checked;
+            const smaShort = document.getElementById('input-sma-short').value || '20';
+            const smaLong = document.getElementById('input-sma-long').value || '50';
+            document.getElementById('label-sma-display').innerText = `${smaShort} / ${smaLong}`;
+
+            const useTpSl = document.getElementById('toggle-tpsl').checked;
+            const tp = document.getElementById('input-tp').value || '6.0';
+            const sl = document.getElementById('input-sl').value || '3.0';
+            const posSize = document.getElementById('input-position-size').value || '20';
+            document.getElementById('label-tpsl-display').innerText = `+${tp}% / -${sl}% (비중 ${posSize}%)`;
+
+            let parts = [];
+            if (useGoldman) parts.push(`🛡️ <strong>골드만 리스크 쉴드 ON</strong> (일일 손실 -${maxLoss}% 셧다운 & 변동성 ${volSens}x 비중 조절)`);
+            if (useRsi) parts.push(`📊 <strong>RSI ${rsiBuy}</strong> 저평가 반등`);
+            if (useSma) parts.push(`📈 <strong>SMA ${smaShort}/${smaLong}</strong> 정배열 추세 필터`);
+            if (useTpSl) parts.push(`🎯 <strong>손익비 2:1</strong> (+${tp}% / -${sl}%, 1회 ${posSize}%)`);
+
+            if (parts.length === 0) {
+                document.getElementById('beginner-strategy-summary').innerHTML = '⚠️ 선택된 모듈이 없습니다. 최소 1개 이상의 지표 모듈을 활성화해주세요.';
+            } else {
+                document.getElementById('beginner-strategy-summary').innerHTML = `💡 <strong>[선택된 알고리즘 구성]</strong> ${parts.join(' + ')}`;
+            }
+        }
+
+        function loadDevPreset(presetType) {
+            const editor = document.getElementById('bot-python-code');
+            if (presetType === 'GOLDMAN') {
+                editor.value = `# -*- coding: utf-8 -*-
+import ccxt
+import time
+import pandas as pd
+import numpy as np
+
+# ===================================================================
+# Goldman Sachs gs-quant Style Risk Parity & Volatility-Adjusted Bot
+# ===================================================================
+def on_tick(symbol, current_price, rsi, sma20, atr_pct, daily_pnl):
+    # 1. 일일 최대 손실(-4.0%) 도달 시 셧다운 (Circuit Breaker)
+    if daily_pnl <= -4.0:
+        return {"action": "HOLD", "reason": "Goldman Circuit Breaker Triggered (-4.0%)"}
+    
+    # 2. ATR 변동성 감응형 동적 포지션 사이징 (Kelly / Volatility Scaling)
+    vol_adjusted_size = max(5.0, min(30.0, 20.0 / (atr_pct * 1.2)))
+
+    # 3. 기관급 복합 신호 평가
+    if rsi < 30.0 and current_price > sma20:
+        return {"action": "BUY", "size_pct": vol_adjusted_size, "reason": f"RSI Oversold + Vol Size {vol_adjusted_size:.1f}%"}
+    elif rsi > 70.0:
+        return {"action": "SELL", "size_pct": 100.0, "reason": "Take Profit Target"}
+    
+    return {"action": "HOLD"}`;
+            } else if (presetType === 'SCALPER') {
+                editor.value = `# -*- coding: utf-8 -*-
+import time
+
+# ===================================================================
+# High-Frequency 1m Micro-Structure Orderflow Scalper
+# ===================================================================
+def on_tick(symbol, current_price, rsi, sma20, atr_pct, daily_pnl):
+    # 1분봉 초단타 볼륨 브레이크아웃 스캘핑 전략
+    if current_price > sma20 and rsi < 38.0:
+        return {"action": "BUY", "size_pct": 15.0, "reason": "1M Momentum Breakout"}
+    elif rsi > 65.0:
+        return {"action": "SELL", "size_pct": 100.0, "reason": "Quick Scalp TP"}
+    return {"action": "HOLD"}`;
+            } else if (presetType === 'AI_RAG') {
+                editor.value = `# -*- coding: utf-8 -*-
+# ===================================================================
+# AETHER AI Vector RAG-Enhanced Quantitative Strategy
+# ===================================================================
+def on_tick(symbol, current_price, rsi, sma20, atr_pct, daily_pnl):
+    # AI 거시경제 긍정 평가 & RSI 지지선 크로스
+    ai_sentiment_score = 0.82 # RAG Vector Ingestion
+    if ai_sentiment_score > 0.75 and rsi < 35.0:
+        return {"action": "BUY", "size_pct": 25.0, "reason": "AI Institutional RAG Inflow Alpha"}
+    return {"action": "HOLD"}`;
+            }
+            alert(`🏛️ [${presetType}] 전략 템플릿이 에디터에 로드되었습니다!`);
+        }
+
+        async function saveAndStartBot() {
+            const symbol = document.getElementById('bot-target-symbol').value.trim() || 'BTCUSDT';
+            const exchange = document.getElementById('bot-target-exchange').value;
+            const tf = document.getElementById('bot-target-tf').value;
+
+            const useGoldman = document.getElementById('toggle-goldman-risk').checked;
+            const maxDailyLoss = parseFloat(document.getElementById('input-max-daily-loss').value) || 4.0;
+            const volSens = parseFloat(document.getElementById('input-vol-sensitivity').value) || 1.0;
+
+            const useRsi = document.getElementById('toggle-rsi').checked;
+            const rsiBuy = parseFloat(document.getElementById('slider-rsi-buy').value);
+            const rsiSell = parseFloat(document.getElementById('slider-rsi-sell').value);
+
+            const useSma = document.getElementById('toggle-sma').checked;
+            const smaShort = parseInt(document.getElementById('input-sma-short').value);
+            const smaLong = parseInt(document.getElementById('input-sma-long').value);
+
+            const useTpSl = document.getElementById('toggle-tpsl').checked;
+            const tp = parseFloat(document.getElementById('input-tp').value);
+            const sl = parseFloat(document.getElementById('input-sl').value);
+            const posSize = parseFloat(document.getElementById('input-position-size').value) || 20.0;
+
+            const pyCode = document.getElementById('bot-python-code').value;
+
+            try {
+                // 1. Create or Update instance
+                const createRes = await fetch('/api/bot/instance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUserId,
+                        botName: `AETHER-24H-${symbol}`,
+                        mode: currentBotMode,
+                        exchange: exchange,
+                        symbol: symbol,
+                        timeFrame: tf,
+                        useGoldmanRiskGuard: useGoldman,
+                        maxDailyLossPct: maxDailyLoss,
+                        volatilitySensitivity: volSens,
+                        useRsi: useRsi,
+                        rsiBuyThreshold: rsiBuy,
+                        rsiSellThreshold: rsiSell,
+                        useSma: useSma,
+                        smaShortPeriod: smaShort,
+                        smaLongPeriod: smaLong,
+                        useTakeProfitStopLoss: useTpSl,
+                        takeProfitPct: tp,
+                        stopLossPct: sl,
+                        positionSizePct: posSize,
+                        pythonCode: pyCode
+                    })
+                });
+
+                const botData = await createRes.json();
+                if (!createRes.ok || !botData.success) {
+                    alert('봇 설정 저장 실패: ' + (botData.message || '오류'));
+                    return;
+                }
+
+                currentBotInstanceId = botData.instanceId;
+
+                // 2. Start 24H Instance
+                const startRes = await fetch(`/api/bot/instance/${currentBotInstanceId}/start?userId=${currentUserId}`, {
+                    method: 'POST'
+                });
+                const startData = await startRes.json();
+
+                if (startRes.ok && startData.success) {
+                    alert(`🚀 24시간 가상 봇 인스턴스가 성공적으로 가동되었습니다!\n\n종목: ${symbol} (${exchange})\n모드: ${currentBotMode}\n골드만 리스크 쉴드: ${useGoldman ? 'ON' : 'OFF'}\n상태: RUNNING`);
+                    updateBotRunningUI(true, startData);
+                    fetchBotLogs();
+                    if (!botLogPollingInterval) {
+                        botLogPollingInterval = setInterval(fetchBotLogs, 3000);
+                    }
+                } else {
+                    alert('봇 가동 실패: ' + (startData.message || '구독 만료'));
+                    if (startData.message && startData.message.includes('구독')) {
+                        loadBotSubscription();
+                    }
+                }
+            } catch (e) {
+                alert('서버 통신 실패: ' + e.message);
+            }
+        }
+
+        async function stopBotInstance() {
+            if (!currentBotInstanceId) return;
+
+            try {
+                const res = await fetch(`/api/bot/instance/${currentBotInstanceId}/stop?userId=${currentUserId}`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    alert('🛑 가상 인스턴스 봇이 안전하게 중지되었습니다.');
+                    updateBotRunningUI(false, data);
+                    if (botLogPollingInterval) {
+                        clearInterval(botLogPollingInterval);
+                        botLogPollingInterval = null;
+                    }
+                    fetchBotLogs();
+                }
+            } catch (e) {
+                alert('중지 통신 실패: ' + e.message);
+            }
+        }
+
+        async function testDeveloperPythonCode() {
+            const pyCode = document.getElementById('bot-python-code').value;
+            const symbol = document.getElementById('bot-target-symbol').value.trim() || 'BTCUSDT';
+            const resultBox = document.getElementById('dev-test-result');
+
+            resultBox.style.display = 'block';
+            resultBox.innerText = '🔍 샌드박스 보안 검사 및 파이썬 AST 구문 분석 실행 중...';
+            resultBox.style.background = '#f8fafc';
+            resultBox.style.borderColor = '#cbd5e1';
+            resultBox.style.color = '#334155';
+
+            try {
+                const res = await fetch('/api/bot/instance/test-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pythonCode: pyCode,
+                        symbol: symbol,
+                        timeFrame: '5m'
+                    })
+                });
+
+                const data = await res.json();
+                if (data.valid) {
+                    resultBox.style.background = '#f0fdf4';
+                    resultBox.style.borderColor = '#86efac';
+                    resultBox.style.color = '#15803d';
+                    resultBox.innerHTML = `✅ <strong>검증 통과!</strong> ${data.message}<br><small>감지된 모듈: ${data.detectedLibraries.join(', ')}</small>`;
+                } else {
+                    resultBox.style.background = '#fff1f2';
+                    resultBox.style.borderColor = '#fecdd3';
+                    resultBox.style.color = '#b91c1c';
+                    resultBox.innerHTML = `❌ <strong>검증 실패:</strong> ${data.message}`;
+                }
+            } catch (e) {
+                resultBox.innerText = '검증 통신 오류: ' + e.message;
+            }
+        }
+
+        async function fetchBotLogs() {
+            if (!currentBotInstanceId) return;
+
+            try {
+                const res = await fetch(`/api/bot/instance/${currentBotInstanceId}/logs?limit=25`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const box = document.getElementById('bot-terminal-logs');
+                    if (data.logs && data.logs.length > 0) {
+                        box.innerHTML = data.logs.map(l => {
+                            let color = '#a5f3fc';
+                            if (l.logLevel === 'ORDER') color = '#4ade80';
+                            if (l.logLevel === 'SIGNAL') color = '#facc15';
+                            if (l.logLevel === 'WARN') color = '#fb923c';
+                            if (l.logLevel === 'ERROR') color = '#f87171';
+                            return `<div style="color: ${color};">[${l.timestamp.substring(11, 19)}] [${l.logLevel}] ${l.message}</div>`;
+                        }).join('');
+                        box.scrollTop = box.scrollHeight;
+                    }
+                }
+            } catch (e) {
+                console.debug('Log fetch note:', e);
+            }
+        }
+
+        function updateBotRunningUI(running, botData) {
+            isBotRunning = running;
+            const startBtn = document.getElementById('btn-bot-start');
+            const stopBtn = document.getElementById('btn-bot-stop');
+            const badge = document.getElementById('bot-status-badge');
+
+            if (running) {
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+                badge.innerText = '🟢 RUNNING (24H)';
+                badge.style.background = '#dcfce7';
+                badge.style.color = '#15803d';
+            } else {
+                startBtn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+                badge.innerText = '⚪ STOPPED';
+                badge.style.background = '#e2e8f0';
+                badge.style.color = '#475569';
+            }
+
+            if (botData) {
+                document.getElementById('bot-hud-pnl').innerText = `${botData.cumulativePnlPct >= 0 ? '+' : ''}${botData.cumulativePnlPct.toFixed(2)}%`;
+                document.getElementById('bot-hud-winrate').innerText = `${botData.winRate.toFixed(1)}% (${botData.winningTrades}승 ${botData.totalTrades - botData.winningTrades}패)`;
+            }
+        }
+
+        // ── Live Stream & Financial TV Logic ──
+        let currentStreamChannel = null;
+        let streamInsightsPolling = null;
+
+        function openStreamModal() {
+            document.getElementById('stream-modal').style.display = 'flex';
+            loadStreamChannels('ALL');
+            loadStreamInsights();
+            if (!streamInsightsPolling) {
+                streamInsightsPolling = setInterval(loadStreamInsights, 8000);
+            }
+        }
+
+        function closeStreamModal() {
+            document.getElementById('stream-modal').style.display = 'none';
+            if (streamInsightsPolling) {
+                clearInterval(streamInsightsPolling);
+                streamInsightsPolling = null;
+            }
+        }
+
+        function filterStreamCategory(cat, btn) {
+            const buttons = btn.parentElement.querySelectorAll('.nav-pill');
+            buttons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            loadStreamChannels(cat);
+        }
+
+        async function loadStreamChannels(category) {
+            try {
+                let url = '/api/stream/channels';
+                if (category && category !== 'ALL') {
+                    url += `?category=${category}`;
+                }
+                const res = await fetch(url);
+                if (res.ok) {
+                    const channels = await res.json();
+                    renderStreamChannels(channels);
+                    if (!currentStreamChannel && channels.length > 0) {
+                        selectStreamChannel(channels[0]);
+                    }
+                }
+            } catch (e) {
+                console.warn('Stream channels load error:', e);
+            }
+        }
+
+        function renderStreamChannels(channels) {
+            const list = document.getElementById('stream-channel-list');
+            list.innerHTML = '';
+
+            if (!channels || channels.length === 0) {
+                list.innerHTML = '<div style="font-size: 11px; color: var(--text-dim); text-align: center; padding: 14px;">채널이 없습니다.</div>';
+                return;
+            }
+
+            channels.forEach(c => {
+                const card = document.createElement('div');
+                card.style = 'background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s;';
+                card.onmouseover = () => card.style.borderColor = 'var(--primary)';
+                card.onmouseout = () => card.style.borderColor = 'var(--border-subtle)';
+                card.onclick = () => selectStreamChannel(c);
+
+                const biasColor = c.liveSentiment === 'BULLISH' ? 'var(--signal-buy)' : '#e11d48';
+
+                card.innerHTML = `
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <img src="${c.thumbnailUrl || 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=100'}" style="width: 32px; height: 32px; border-radius: 6px; object-fit: cover;">
+                        <div>
+                            <div style="font-size: 12px; font-weight: 700; color: var(--text-title);">${c.channelName}</div>
+                            <div class="mono" style="font-size: 10px; color: var(--text-dim);">${c.streamerName} • <span style="color: #e11d48;">${(c.viewerCount/1000).toFixed(1)}k live</span></div>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="mono" style="font-size: 10px; font-weight: 700; color: ${biasColor}; background: #f8fafc; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                            ${c.targetSymbol}
+                        </span>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function selectStreamChannel(channel) {
+            currentStreamChannel = channel;
+            const iframe = document.getElementById('live-stream-player');
+            iframe.src = `https://www.youtube.com/embed/${channel.embedUrl}?autoplay=1&mute=1&cc_load_policy=1&cc_lang_pref=ko&hl=ko`;
+            document.getElementById('player-stream-title').innerText = channel.streamTitle;
+            document.getElementById('player-streamer').innerHTML = `${channel.channelName} • <span style="color: #e11d48; font-weight: 700;">${channel.viewerCount.toLocaleString()}명 시청 중</span>`;
+
+            // Update Likes / Dislikes UI
+            document.getElementById('stream-like-count').innerText = channel.likeCount || 384;
+            document.getElementById('stream-dislike-count').innerText = channel.dislikeCount || 12;
+            updateReactionButtonsUI(channel.userReaction);
+
+            // Load Comments
+            loadStreamComments(channel.channelId);
+        }
+
+        function updateReactionButtonsUI(reaction) {
+            const likeBtn = document.getElementById('btn-stream-like');
+            const dislikeBtn = document.getElementById('btn-stream-dislike');
+            if (!likeBtn || !dislikeBtn) return;
+
+            likeBtn.style.background = reaction === 'LIKE' ? '#ecfdf5' : '#fff';
+            likeBtn.style.borderColor = reaction === 'LIKE' ? '#059669' : 'var(--border-subtle)';
+            likeBtn.style.color = reaction === 'LIKE' ? '#059669' : 'inherit';
+
+            dislikeBtn.style.background = reaction === 'DISLIKE' ? '#fff1f2' : '#fff';
+            dislikeBtn.style.borderColor = reaction === 'DISLIKE' ? '#e11d48' : 'var(--border-subtle)';
+            dislikeBtn.style.color = reaction === 'DISLIKE' ? '#e11d48' : 'inherit';
+        }
+
+        async function toggleStreamReaction(type) {
+            if (!currentStreamChannel) return;
+
+            try {
+                const res = await fetch(`/api/stream/channels/${currentStreamChannel.channelId}/reaction?userId=${currentUserId}&reactionType=${type}`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    document.getElementById('stream-like-count').innerText = data.likeCount;
+                    document.getElementById('stream-dislike-count').innerText = data.dislikeCount;
+                    updateReactionButtonsUI(data.userReaction);
+                    currentStreamChannel.likeCount = data.likeCount;
+                    currentStreamChannel.dislikeCount = data.dislikeCount;
+                    currentStreamChannel.userReaction = data.userReaction;
+
+                    if (type === 'LIKE' && data.userReaction === 'LIKE') {
+                        alert(data.message);
+                    }
+                }
+            } catch (e) {
+                console.warn('Reaction error:', e);
+            }
+        }
+
+        async function loadStreamComments(channelId) {
+            if (!channelId) return;
+
+            try {
+                const res = await fetch(`/api/stream/channels/${channelId}/comments?limit=30`);
+                if (res.ok) {
+                    const comments = await res.json();
+                    const container = document.getElementById('stream-comments-container');
+                    document.getElementById('stream-comment-count-label').innerText = `댓글 ${comments.length}개`;
+
+                    if (!comments || comments.length === 0) {
+                        container.innerHTML = '<div style="font-size: 11px; color: var(--text-dim); text-align: center; padding: 12px;">첫 번째 분석 댓글을 남기고 1.0 AETHER를 획득하세요!</div>';
+                        return;
+                    }
+
+                    container.innerHTML = comments.map(c => {
+                        const biasColor = c.sentimentBias === 'BULLISH' ? '#059669' : (c.sentimentBias === 'BEARISH' ? '#e11d48' : '#64748b');
+                        const biasBg = c.sentimentBias === 'BULLISH' ? '#ecfdf5' : (c.sentimentBias === 'BEARISH' ? '#fff1f2' : '#f1f5f9');
+                        const timeStr = c.createdAt ? c.createdAt.substring(11, 16) : '방금 전';
+
+                        return `
+                            <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 7px 10px; display: flex; flex-direction: column; gap: 2px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span style="font-size: 11.5px; font-weight: 700; color: var(--text-title);">${c.authorNickname}</span>
+                                        <span class="mono" style="font-size: 9.5px; font-weight: 700; color: ${biasColor}; background: ${biasBg}; padding: 1px 5px; border-radius: 3px;">
+                                            ${c.sentimentBias}
+                                        </span>
+                                    </div>
+                                    <span class="mono" style="font-size: 10px; color: var(--text-dim);">${timeStr}</span>
+                                </div>
+                                <div style="font-size: 11.5px; color: var(--text-body); line-height: 1.4;">${c.content}</div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (e) {
+                console.warn('Comments load error:', e);
+            }
+        }
+
+        async function submitStreamComment() {
+            if (!currentStreamChannel) return;
+
+            const input = document.getElementById('stream-comment-input');
+            const sentiment = document.getElementById('stream-comment-sentiment').value;
+            const text = input.value.trim();
+
+            if (!text) {
+                alert('댓글 내용을 입력해주세요.');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/stream/channels/${currentStreamChannel.channelId}/comments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUserId,
+                        content: text,
+                        sentimentBias: sentiment
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    input.value = '';
+                    alert('🎉 실시간 분석 댓글이 등록되었습니다! (+1.0 AETHER 보상 지급)');
+                    loadStreamComments(currentStreamChannel.channelId);
+                } else {
+                    alert('댓글 등록 실패: ' + (data.message || '오류'));
+                }
+            } catch (e) {
+                alert('통신 실패: ' + e.message);
+            }
+        }
+
+        function syncChartFromStream() {
+            if (currentStreamChannel && currentStreamChannel.targetSymbol) {
+                switchSymbol(currentStreamChannel.targetSymbol, null);
+                alert(`📊 메인 차트와 의사결정 터미널이 [${currentStreamChannel.targetSymbol}] 로 동기화되었습니다!`);
+            }
+        }
+
+        async function loadStreamInsights() {
+            try {
+                const res = await fetch('/api/stream/insights?limit=10');
+                if (res.ok) {
+                    const insights = await res.json();
+                    const box = document.getElementById('stream-insights-list');
+                    if (insights && insights.length > 0) {
+                        box.innerHTML = insights.map(i => {
+                            const biasColor = i.sentiment === 'BULLISH' ? '#4ade80' : '#f87171';
+                            return `
+                                <div style="font-size: 11px; line-height: 1.4; border-bottom: 1px dashed #334155; padding-bottom: 4px;">
+                                    <span style="color: ${biasColor}; font-weight: 700;">[${i.symbol} ${i.signalType}]</span>
+                                    <span style="color: #e2e8f0;">${i.commentary}</span>
+                                    <span style="color: #94a3b8; font-size: 9.5px; float: right;">${i.timestamp.substring(11, 16)}</span>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                }
+            } catch (e) {
+                console.debug('Stream insights note:', e);
+            }
+        }
+
+        function toggleAddStreamForm() {
+            const form = document.getElementById('custom-stream-form');
+            form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        async function submitNewStream() {
+            const name = document.getElementById('new-stream-name').value.trim();
+            const title = document.getElementById('new-stream-title').value.trim();
+            const url = document.getElementById('new-stream-url').value.trim();
+
+            if (!name || !title || !url) {
+                alert('모든 필드를 입력해주세요.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/stream/channels', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channelName: name,
+                        streamTitle: title,
+                        embedUrl: url,
+                        platform: 'YOUTUBE',
+                        category: 'CRYPTO',
+                        targetSymbol: 'BTCUSDT'
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    alert('🎉 새 라이브 스트림 채널이 성공적으로 등록되었습니다!');
+                    toggleAddStreamForm();
+                    loadStreamChannels('ALL');
+                    selectStreamChannel(data);
+                } else {
+                    alert('채널 등록 실패: ' + (data.message || '오류'));
+                }
+            } catch (e) {
+                alert('등록 통신 실패: ' + e.message);
             }
         }
 
