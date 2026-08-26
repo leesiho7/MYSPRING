@@ -1,52 +1,47 @@
 server:
   port: ${SERVER_PORT:8080}
+
 spring:
   main:
     allow-bean-definition-overriding: true
   application:
     name: trading-intelligence-system
-<<<<<<< HEAD
-=======
-  # MySQL Database Configuration (현재 H2로 대체)
->>>>>>> f204ac577c57240a1b5b271d2e8047c64c86c9e3
+
+  # Database Configuration (MySQL 기본 지원 및 환경변수 오버라이딩 가능)
   datasource:
-    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/trading_db?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:com.mysql.cj.jdbc.Driver}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:1234}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
+      connection-timeout: 30000
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: update
-    show-sql: false
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: ${SPRING_JPA_SHOW_SQL:true}
     properties:
       hibernate:
-        format_sql: false
-<<<<<<< HEAD
-=======
+        format_sql: true
+
   # Spring AI Ollama Settings (Local LLM / Nosana Remote GPU Node)
->>>>>>> f204ac577c57240a1b5b271d2e8047c64c86c9e3
   ai:
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         enabled: true
-        model: ${CHAT_MODEL:qwen2.5:14b}
+        model: ${CHAT_MODEL:qwen2.5:3b}
         options:
-          model: ${CHAT_MODEL:qwen2.5:14b}
+          model: ${CHAT_MODEL:qwen2.5:3b}
           temperature: 0.1
       embedding:
         enabled: true
         model: ${EMBEDDING_MODEL:bge-m3:latest}
         options:
           model: ${EMBEDDING_MODEL:bge-m3:latest}
-<<<<<<< HEAD
-=======
+
     # Spring AI ChromaDB Vector Store
->>>>>>> f204ac577c57240a1b5b271d2e8047c64c86c9e3
     vectorstore:
       chroma:
         client:
@@ -54,10 +49,8 @@ spring:
           port: ${CHROMADB_PORT:8000}
         collection-name: ${CHROMADB_COLLECTION:financial-market-news}
         initialize-schema: false
-<<<<<<< HEAD
-=======
+
 # Custom Trading System Settings
->>>>>>> f204ac577c57240a1b5b271d2e8047c64c86c9e3
 trading:
   scoring:
     quant-weight: 0.6
@@ -65,20 +58,15 @@ trading:
     divergence-threshold: 0.5
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
-<<<<<<< HEAD
-    daily-limit: ${RATE_LIMIT_DAILY_LIMIT:1000}
-=======
-    daily-limit: ${RATE_LIMIT_DAILY_LIMIT:1000} # 일일 무료 AI 분석 횟수 제한 (개발/테스트 1000회)
+    daily-limit: ${RATE_LIMIT_DAILY_LIMIT:1000} # 일일 무료 AI 분석 횟수 제한
+
 # Bright Data Web Intelligence & Realtime Scraping API
->>>>>>> f204ac577c57240a1b5b271d2e8047c64c86c9e3
 brightdata:
   api-key: ${BRIGHTDATA_API_KEY:4a62ad76-a8e4-46cb-9cb0-deaf9e6587a7}
   base-url: ${BRIGHTDATA_BASE_URL:https://api.brightdata.com}
   enabled: ${BRIGHTDATA_ENABLED:true}
-<<<<<<< HEAD
-=======
+
 # RAG & VectorStore Hybrid Search Configuration
->>>>>>> f204ac577c57240a1b5b271d2e8047c64c86c9e3
 rag:
   vectorstore:
     similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.7}

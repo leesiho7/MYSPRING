@@ -28,6 +28,39 @@ public class AiConfig {
     @Value("${spring.ai.ollama.embedding.options.model:bge-m3:latest}")
     private String embeddingModelName;
 
+    @Value("${spring.ai.ollama.chat.options.model:qwen2.5:3b}")
+    private String chatModelName;
+
+    @Bean
+    @Primary
+    public org.springframework.ai.chat.model.ChatModel chatModel(ObjectProvider<RestClient.Builder> restClientBuilderProvider,
+                                                                  ObjectProvider<WebClient.Builder> webClientBuilderProvider) {
+        try {
+            RestClient.Builder restBuilder = restClientBuilderProvider.orderedStream().findFirst().orElseGet(RestClient::builder);
+            WebClient.Builder webBuilder = webClientBuilderProvider.orderedStream().findFirst().orElseGet(WebClient::builder);
+            org.springframework.ai.ollama.api.OllamaApi ollamaApi = new org.springframework.ai.ollama.api.OllamaApi(ollamaBaseUrl, restBuilder, webBuilder);
+            org.springframework.ai.ollama.api.OllamaOptions options = org.springframework.ai.ollama.api.OllamaOptions.builder()
+                    .withModel(chatModelName)
+                    .withTemperature(0.2)
+                    .build();
+            log.info("[AiConfig] ✅ Initialized dedicated OllamaChatModel with model: '{}' at {}", chatModelName, ollamaBaseUrl);
+            return new org.springframework.ai.ollama.OllamaChatModel(ollamaApi, options);
+        } catch (Throwable t) {
+            log.error("[AiConfig] ❌ Failed to init OllamaChatModel: {}", t.getMessage(), t);
+            return null;
+        }
+    }
+
+    @Bean
+    @Primary
+    public org.springframework.ai.chat.client.ChatClient chatClient(org.springframework.ai.chat.model.ChatModel chatModel) {
+        if (chatModel != null) {
+            log.info("[AiConfig] ✅ Initialized dedicated ChatClient from ChatModel");
+            return org.springframework.ai.chat.client.ChatClient.create(chatModel);
+        }
+        return null;
+    }
+
     @Bean
     @Primary
     public EmbeddingModel embeddingModel(ObjectProvider<RestClient.Builder> restClientBuilderProvider,

@@ -23,17 +23,24 @@ public class OllamaMarketAgentService {
     private final FinancialNewsRagService ragService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public OllamaMarketAgentService(ObjectProvider<ChatModel> chatModelProvider,
+    public OllamaMarketAgentService(ObjectProvider<ChatClient> chatClientProvider,
+                                    ObjectProvider<ChatModel> chatModelProvider,
                                     ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
                                     FinancialNewsRagService ragService) {
         this.ragService = ragService;
         ChatClient client = null;
         try {
-            ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
-            if (builder != null) {
-                client = builder.build();
-            }
+            client = chatClientProvider.getIfAvailable();
         } catch (Throwable ignored) {}
+
+        if (client == null) {
+            try {
+                ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
+                if (builder != null) {
+                    client = builder.build();
+                }
+            } catch (Throwable ignored) {}
+        }
 
         if (client == null) {
             try {
@@ -54,10 +61,10 @@ public class OllamaMarketAgentService {
             try {
                 String prompt = """
                         당신은 골드만삭스/블룸버그 인텔리전스 퀀트 데스크의 수석 금융 리서치 애널리스트입니다.
-                        아래 제공된 [BGE-M3 RAG 금융 문맥 및 실시간 뉴스 데이터]를 분석하여 %s 자산에 대한 기관급 정성적 투자 인텔리전스 리포트를 작성하세요.
+                        아래 제공된 [BGE-M3 RAG 금융 문맥 및 실시간 뉴스 데이터]를 분석하여 {{SYMBOL}} 자산에 대한 기관급 정성적 투자 인텔리전스 리포트를 작성하세요.
                         
                         [BGE-M3 RAG 금융 문맥 & 뉴스]
-                        - %s
+                        - {{NEWS_CONTEXT}}
                         
                         [분석 가이드라인]
                         1. 감성 점수(sentimentScore)는 단순 느낌이 아닌 거시경제(Macro), ETF/기관 자금 수급(Flow), 온체인(On-chain) 지표를 종합하여 -1.0(극단적 약세) ~ +1.0(극단적 강세) 사이로 정밀하게 산출하세요.
@@ -72,7 +79,9 @@ public class OllamaMarketAgentService {
                           "macroSummary": "ETF 순유입 지속과 유동성 환경 개선으로 중장기 상승 추세가 유효하며, 주요 저항선 돌파 시도가 이어지고 있습니다.",
                           "riskFactors": "단기 레버리지 비율 과열에 따른 변동성 확대 및 거시 지표 발표 경계감."
                         }
-                        """.formatted(symbol, newsContext);
+                        """
+                        .replace("{{SYMBOL}}", symbol != null ? symbol : "BTCUSDT")
+                        .replace("{{NEWS_CONTEXT}}", newsContext != null ? newsContext : "");
 
                 log.info("[OllamaMarketAgentService] Sending Bloomberg Intelligence prompt to Qwen2.5 (BGE-M3 RAG) for {}", symbol);
                 String responseText = chatClient.prompt()

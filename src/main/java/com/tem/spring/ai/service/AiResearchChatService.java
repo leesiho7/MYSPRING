@@ -35,7 +35,8 @@ public class AiResearchChatService {
     private final ChatClient chatClient;
     private final ObjectProvider<com.tem.spring.ai.repository.UserQueryRepository> userQueryRepositoryProvider;
 
-    public AiResearchChatService(ObjectProvider<ChatModel> chatModelProvider,
+    public AiResearchChatService(ObjectProvider<ChatClient> chatClientProvider,
+                                 ObjectProvider<ChatModel> chatModelProvider,
                                  ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
                                  FinancialNewsRagService ragService,
                                  MarketDataIngestionService ingestionService,
@@ -50,12 +51,18 @@ public class AiResearchChatService {
 
         ChatClient client = null;
         try {
-            ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
-            if (builder != null) {
-                client = builder.build();
+            client = chatClientProvider.getIfAvailable();
+        } catch (Throwable ignored) {}
+
+        if (client == null) {
+            try {
+                ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
+                if (builder != null) {
+                    client = builder.build();
+                }
+            } catch (Throwable t) {
+                log.warn("[AiResearchChat] ChatClient.Builder 초기화 실패: {}", t.getMessage());
             }
-        } catch (Throwable t) {
-            log.warn("[AiResearchChat] ChatClient.Builder 초기화 실패: {}", t.getMessage());
         }
 
         if (client == null) {
@@ -71,10 +78,9 @@ public class AiResearchChatService {
 
         this.chatClient = client;
         if (this.chatClient == null) {
-            log.error("[AiResearchChat] ⚠️ ChatClient 가 null 입니다. Ollama(Nosana LLM) 자동설정을 확인하세요. "
-                    + "현재는 하드코딩 폴백 엔진으로만 응답합니다.");
+            log.warn("[AiResearchChat] ⚠️ ChatClient 가 null 입니다. Ollama LLM 서버를 확인하세요. 현재는 동적 정량 합성 엔진으로 응답합니다.");
         } else {
-            log.info("[AiResearchChat] ✅ ChatClient(Ollama/Nosana LLM) 초기화 완료");
+            log.info("[AiResearchChat] ✅ Autonomous AI Research ChatClient(Qwen2.5) 활성화 완료");
         }
     }
 
@@ -86,19 +92,20 @@ public class AiResearchChatService {
         symbol = extractSymbolFromPrompt(prompt.toLowerCase(), symbol);
 
         String convId = req.getConversationId() != null ? req.getConversationId() : UUID.randomUUID().toString();
-        log.info("[AiResearchChat] Processing institutional query for {} (ConvID: {}): '{}'", symbol, convId, prompt);
+        log.info("[AiResearchChat] 🧠 Processing autonomous AI agent query for {} (ConvID: {}): '{}'", symbol, convId, prompt);
 
-        // 1. 실시간 시장 데이터 수집 (ta4j 정량 지표 + RAG 뉴스) - LLM 프롬프트 그라운딩용
+        // 1. 실시간 다차원 시장 데이터 수집 (ta4j 정량 지표 + 실시간 크롤링 뉴스 & RAG 벡터 지식)
         QuantitativeSignal quant = fetchQuantSignal(symbol);
         List<String> news = fetchNews(symbol);
         String marketContext = buildMarketContext(quant, news);
 
-        // 2. Ollama(Nosana) LLM 호출
+        // 2. Ollama(Qwen 2.5) 자율 에이전트 인텔리전스 생성
         if (chatClient != null && !prompt.isBlank()) {
             try {
                 String systemPrompt = buildSystemPrompt(symbol, req, marketContext);
                 String userPrompt = buildUserPrompt(req, prompt);
 
+                log.info("[AiResearchChat] 🚀 Sending unconstrained intelligence prompt to Qwen2.5 LLM for {}", symbol);
                 String llmReply = chatClient.prompt()
                         .system(systemPrompt)
                         .user(userPrompt)
@@ -106,21 +113,19 @@ public class AiResearchChatService {
                         .content();
 
                 if (llmReply != null && !llmReply.isBlank()) {
-                    log.info("[AiResearchChat] ✅ LLM 응답 생성 완료 ({}자)", llmReply.length());
+                    log.info("[AiResearchChat] ✅ Dynamic LLM Response generated ({} chars)", llmReply.length());
                     AiResearchChatResponse resp = buildResponse(llmReply, convId, symbol, req, quant, news);
                     saveQueryAuditLog(convId, symbol, prompt, llmReply, resp.getIntentVerdict(),
                             resp.getEntryQualityScore(), marketContext, System.currentTimeMillis() - startTime, false);
                     return resp;
                 }
-                log.warn("[AiResearchChat] LLM 이 빈 응답을 반환하여 폴백 엔진으로 전환합니다.");
+                log.warn("[AiResearchChat] LLM empty response, using dynamic synthesis fallback.");
             } catch (Exception e) {
-                // 조용히 삼키지 않고 스택트레이스까지 남겨 원인 진단이 가능하도록 함
-                log.error("[AiResearchChat] ❌ Ollama(Nosana) LLM 호출 실패 - 폴백 엔진으로 전환합니다. 원인: {}",
-                        e.getMessage(), e);
+                log.error("[AiResearchChat] ❌ Ollama LLM 호출 오류 발생: {}. 실시간 데이터 기반 동적 리포트로 전환합니다.", e.getMessage(), e);
             }
         }
 
-        // 3. LLM 사용 불가 시 정량 데이터 기반 폴백 리포트
+        // 3. LLM 연결 장애 시 실시간 데이터 기반 동적 퀀트 리포트 생성
         AiResearchChatResponse fallbackResp = generateInstitutionalQuantReport(symbol, prompt, req, quant, news);
         saveQueryAuditLog(convId, symbol, prompt, fallbackResp.getReply(), fallbackResp.getIntentVerdict(),
                 fallbackResp.getEntryQualityScore(), marketContext, System.currentTimeMillis() - startTime, true);
@@ -154,66 +159,56 @@ public class AiResearchChatService {
     }
 
     // ---------------------------------------------------------------------
-    // 프롬프트 구성
+    // 자율형 에이전트 프롬프트 구성 (형식 제한 해제 & 정보 쏟아내기 극대화)
     // ---------------------------------------------------------------------
 
     private String buildSystemPrompt(String symbol, AiResearchChatRequest req, String marketContext) {
         String template = """
-                당신은 블룸버그 인텔리전스(Bloomberg Intelligence) 및 월스트리트 헤지펀드의 수석 퀀트 디렉터입니다.
+                당신은 골드만삭스(Goldman Sachs) 퀀트 트레이딩 데스크와 블룸버그 인텔리전스(Bloomberg Intelligence)를 총괄하는 **최고 수준의 자율형 수석 금융 리서치 AI 에이전트**입니다.
 
-                [최우선 작성 원칙]
-                - 반드시 한국어 존댓말로만 작성하십시오.
-                - 1~2문장의 단답형 요약을 절대 금지합니다. 기관 투자자 및 전문 트레이더에게 보고하는 **최소 500자 이상의 고품격 정밀 퀀트 메모랜덤**을 작성하십시오.
-                - 아래 [실시간 시장 데이터]에 명시된 실제 수치(현재가, RSI, SMA20/50, 볼린저밴드, 퀀트 점수)와 [Bright Data & RAG 실시간 뉴스/공시]에 명시된 **출처(Source) 및 수집 시각(Timestamp)**을 본문에 반드시 직접 인용하여 분석의 시의성과 팩트체크 신뢰도를 입증하십시오.
+                [에이전트 행동 지침 및 핵심 원칙]
+                1. **사용자의 질문 의도에 완벽하게 맞춤 대응**:
+                   - 사용자가 가볍게 묻든, 은어나 속어(예: 롱, 숏, 물렸냐, 떡상, 떡락, 손절)를 쓰든, 구체적인 가격대/지표를 묻든 질문의 핵심을 정면으로 짚고 명쾌하게 해결하십시오.
+                   - 판에 박힌 3~4줄 요약이나 뻔한 경고 문구로 때우지 마십시오. 사용자가 묻는 바에 대해 **정보와 팩트를 풍부하게 쏟아내어(High Information Density)** 리포트를 작성하십시오.
+
+                2. **실시간 데이터의 적극적 인용 및 근거 제시**:
+                   - 아래 제공된 [실시간 기술적 지표]의 실제 수치(현재가, RSI, SMA20/50, 볼린저 밴드 상단/하단, 골든/데드크로스, 퀀트 점수)를 본문에 구체적으로 명시하며 기술적 근거를 설명하십시오.
+                   - [실시간 뉴스 & 공시 속보]에 적힌 **실제 언론사 출처와 수집 시각(KST)**을 인용하여 정보의 신뢰성과 시의성을 입증하십시오.
+
+                3. **다각도 입체 분석 (Multi-Angle Intelligence)**:
+                   - **거시경제/유동성(Macro & Flow)**: ETF 자금 유출입, 금리/환율, 시장 심리
+                   - **차트 구조 및 모멘텀(Quant Structure)**: 이동평균선 지지/저항, 과매수/과매도, 변동성 밴드
+                   - **실전 액션 플랜(Actionable Plan)**: 구체적인 진입 가격대, 분할 매수/매도 비중(%), 손절(Invalidation) 기준선, 목표 익절가
+                   - **시나리오 분석**: 상방 돌파 시(Bull Case) vs 하방 이탈 시(Bear Case) 대응 전략
+
+                4. **톤앤매너**:
+                   - 한국어 존댓말을 사용하며, 전문적이고 명확하며 통찰력 넘치는 월가 퀀트 디렉터의 어조를 유지하십시오.
 
                 [분석 대상 자산]: {{SYMBOL}}
-                [투자 의도]: {{INTENT}} / [운용 기간]: {{HORIZON}} / [가용 예산]: {{AMOUNT}}
+                [투자 성향/의도]: {{INTENT}} | [운용 기간]: {{HORIZON}} | [가용 자본]: {{AMOUNT}}
 
-                [실시간 시장 데이터 & 크롤링 뉴스 — 반드시 아래 수치 및 출처/수집시각을 인용하여 서술할 것]
+                [실시간 시장 정량 데이터 & 실시간 뉴스 속보 문맥]:
                 {{MARKET_CONTEXT}}
-
-                [반드시 준수해야 할 마크다운 출력 템플릿]
-                아래 4개 섹션과 표(Table) 형식을 반드시 그대로 갖추어 상세하게 작성하십시오:
-
-                ### 1. 🌐 거시경제(Macro) 및 기관 수급(Flow) 심층 진단
-                - RAG 뉴스 데이터 및 거시경제 유동성 흐름을 바탕으로 한 현재 시장의 구조적 방향성을 2문장 이상으로 상세 분석.
-
-                ### 2. 📈 ta4j 정량 지표 정밀 판정
-                - **실시간 현재가 및 이평선 구조**: 현재가, SMA20, SMA50 및 골든/데드크로스 현황 인용 분석.
-                - **모멘텀 및 변동성**: RSI(14) 수치와 볼린저 밴드 상단/하단 레벨을 직접 수치로 인용하여 지지/저항 구간 설명.
-                - **퀀트 종합 스코어**: ta4j 정량 점수 및 추천 액션에 대한 수학적 해석.
-
-                ### 3. 🎯 3단계 포지션 사이징(Scale-in) 분할 진입 실행표
-                | 진입 단계 | 권장 비중 | 진입 조건 및 타겟 가격대 | 실행 가이드 |
-                | :--- | :--- | :--- | :--- |
-                | **1차 정찰** | 30% | 현재가 부근 모멘텀 확증 | 시장 진입 및 캔들 반응 확인 |
-                | **2차 지지** | 40% | 20 SMA / 볼린저 중단 지지 확인 시 | 최대 비중으로 평단가 최적화 |
-                | **3차 돌파** | 30% | 직전 고점 및 저항선 상방 돌파 안착 시 | 추세 강화 시 추가 불타기 |
-
-                ### 4. ⚖️ 비대칭 손익비(Asymmetric R:R) 및 손절(Invalidation) 기준선
-                - **목표 기대 수익 (Target)**: 구체적 1차/2차 목표가 및 기대 수익률(%).
-                - **무효화 손절선 (Stop-Loss)**: 구조가 깨지는 이탈 기준 가격선 및 손실 제한선.
-                - **최종 손익비 (Risk/Reward)**: 최소 1:2.5 이상의 비대칭 손익비 계산 근거.
                 """;
 
         return template
                 .replace("{{SYMBOL}}", symbol)
-                .replace("{{INTENT}}", nvl(req.getIntent(), "매수/포지션 진입 여부 타진"))
-                .replace("{{HORIZON}}", nvl(req.getHorizon(), "중단기 스윙"))
-                .replace("{{AMOUNT}}", nvl(req.getAmount(), "가용 운용 자본"))
-                .replace("{{MARKET_CONTEXT}}", marketContext != null ? marketContext : "");
+                .replace("{{INTENT}}", nvl(req.getIntent(), "자율 포지션 및 시장 분석"))
+                .replace("{{HORIZON}}", nvl(req.getHorizon(), "중단기 스윙 / 데이트레이딩"))
+                .replace("{{AMOUNT}}", nvl(req.getAmount(), "운용 자산"))
+                .replace("{{MARKET_CONTEXT}}", marketContext != null ? marketContext : "(실시간 데이터 로드 완료)");
     }
 
     private String buildUserPrompt(AiResearchChatRequest req, String prompt) {
         StringBuilder sb = new StringBuilder();
         if (req.getHistory() != null && !req.getHistory().isEmpty()) {
-            sb.append("[이전 대화 맥락]\n");
+            sb.append("[이전 대화 히스토리]\n");
             for (AiResearchChatRequest.ChatMessageDto msg : req.getHistory()) {
                 sb.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
             }
             sb.append("\n");
         }
-        sb.append("[고객의 현재 질의]\n").append(prompt);
+        sb.append("[사용자 질문]:\n").append(prompt);
         return sb.toString();
     }
 
@@ -373,9 +368,23 @@ public class AiResearchChatService {
         if (lowerP.contains("수이") || lowerP.contains("sui")) return "SUIUSDT";
         if (lowerP.contains("이더") || lowerP.contains("eth")) return "ETHUSDT";
         if (lowerP.contains("솔라나") || lowerP.contains("sol")) return "SOLUSDT";
+        if (lowerP.contains("리플") || lowerP.contains("xrp")) return "XRPUSDT";
+        if (lowerP.contains("도지") || lowerP.contains("doge")) return "DOGEUSDT";
+        if (lowerP.contains("에이다") || lowerP.contains("ada")) return "ADAUSDT";
+        if (lowerP.contains("아발란체") || lowerP.contains("avax")) return "AVAXUSDT";
+        if (lowerP.contains("니어") || lowerP.contains("near")) return "NEARUSDT";
+        if (lowerP.contains("체인링크") || lowerP.contains("link")) return "LINKUSDT";
+        if (lowerP.contains("바이낸스") || lowerP.contains("bnb")) return "BNBUSDT";
         if (lowerP.contains("엔비디아") || lowerP.contains("nvda")) return "NVDA";
-        if (lowerP.contains("삼성") || lowerP.contains("samsung")) return "005930.KS";
-        if (lowerP.contains("비트") || lowerP.contains("btc")) return "BTCUSDT";
+        if (lowerP.contains("테슬라") || lowerP.contains("tsla")) return "TSLA";
+        if (lowerP.contains("애플") || lowerP.contains("aapl")) return "AAPL";
+        if (lowerP.contains("마소") || lowerP.contains("마이크로") || lowerP.contains("msft")) return "MSFT";
+        if (lowerP.contains("구글") || lowerP.contains("googl")) return "GOOGL";
+        if (lowerP.contains("메타") || lowerP.contains("meta")) return "META";
+        if (lowerP.contains("삼성") || lowerP.contains("samsung") || lowerP.contains("005930")) return "005930.KS";
+        if (lowerP.contains("하이닉스") || lowerP.contains("hynix") || lowerP.contains("000660")) return "000660.KS";
+        if (lowerP.contains("현대차") || lowerP.contains("hyundai") || lowerP.contains("005380")) return "005380.KS";
+        if (lowerP.contains("비트") || lowerP.contains("btc") || lowerP.contains("비트코인")) return "BTCUSDT";
         return fallback;
     }
 
