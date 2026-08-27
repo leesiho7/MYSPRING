@@ -19,6 +19,10 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     boolean existsByNickname(String nickname);
 
+    Optional<UserEntity> findByDepositAddress(String depositAddress);
+
+    Optional<UserEntity> findByTelegramChatId(String telegramChatId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM UserEntity u WHERE u.id = :userId")
     Optional<UserEntity> findByIdWithPessimisticLock(@Param("userId") Long userId);

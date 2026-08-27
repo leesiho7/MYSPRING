@@ -71,3 +71,49 @@ rag:
   vectorstore:
     similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.7}
     top-k: ${RAG_TOP_K:3}
+
+# Blockchain Webhook & Crypto Payment Settings (Tatum, QuickNode, Alchemy)
+blockchain:
+  webhook:
+    secret: ${CRYPTO_WEBHOOK_SECRET:aether_super_secret_webhook_key_2026}
+    enabled: true
+  license:
+    secret-key: ${LICENSE_TOKEN_SECRET_KEY:aether_trading_ai_super_secret_license_salt_999}
+    duration-days: 30
+    monthly-price-usdt: 7.0
+  deposit:
+    addresses:
+      polygon: ${DEPOSIT_WALLET_POLYGON:0x71C8364f3B80430C4361b17b2F3057173b0638A9}
+      bsc: ${DEPOSIT_WALLET_BSC:0x71C8364f3B80430C4361b17b2F3057173b0638A9}
+      trc20: ${DEPOSIT_WALLET_TRC20:TYDzsYUE282QJ84qjxoKqT5wD3ZgK8ZABC}
+      solana: ${DEPOSIT_WALLET_SOLANA:7Xv9BfV4U932pQZ9USDT4444444444444444444444444444}
+
+
+# Official Telegram Bot Configuration (1:1 Personal Deep Linking)
+telegram:
+  bot:
+    token: ${TELEGRAM_BOT_TOKEN:mock_bot_token_123456789:ABCdefGHIjklMNOpqrsTUVwxyz}
+    username: ${TELEGRAM_BOT_USERNAME:AetherQuantOfficialBot}
+    webhook-url: ${TELEGRAM_WEBHOOK_URL:https://api.aether-trading.com/api/v1/telegram/webhook}
+    mock-mode: ${TELEGRAM_MOCK_MODE:true} # 테스트/로컬 환경에서는 콘솔 로깅으로 Mock 동작
+
+# Quant Bot Virtual Instance / Docker Provisioning
+bot:
+  hosting:
+    mode: ${BOT_HOSTING_MODE:HYBRID} # DOCKER, PROCESS, MOCK, HYBRID
+    docker:
+      image: ${QUANT_BOT_DOCKER_IMAGE:python:3.11-slim}
+      network: ${QUANT_BOT_DOCKER_NETWORK:bridge}
+      memory-limit: "512m"
+      cpu-limit: "1.0"
+
+# Cryptomus Crypto Payment & Payout API Gateway
+cryptomus:
+  merchant-id: ${CRYPTOMUS_MERCHANT_ID:mock_merchant_uuid_12345678}
+  payment-key: ${CRYPTOMUS_PAYMENT_API_KEY:mock_payment_api_key_abcdef123456}
+  payout-key: ${CRYPTOMUS_PAYOUT_API_KEY:mock_payout_api_key_7890ghijklmn}
+  base-url: ${CRYPTOMUS_BASE_URL:https://api.cryptomus.com}
+  callback-url: ${CRYPTOMUS_CALLBACK_URL:https://api.aether-trading.com/api/v1/payments/cryptomus/webhook}
+  mock-mode: ${CRYPTOMUS_MOCK_MODE:true} # 로컬/테스트 환경에서 Mock 모드 지원
+
+

@@ -41,6 +41,12 @@ public class UserEntity {
     @Column(length = 50)
     private String bybitUid; // 바이비트 계정 UID (수수료 0원 즉시 출금용)
 
+    @Column(length = 100)
+    private String depositAddress; // 유저별 고유 크립토 입금 주소 (Tatum/QuickNode 웹훅 감지용)
+
+    @Column(length = 50)
+    private String telegramChatId; // 공식 텔레그램 봇 1:1 딥링크 매핑 Chat ID
+
     @Column(nullable = false)
     @Builder.Default
     private double tokenBalance = 50.0; // 보유 AETHER 토큰 잔고 (기본 가입 축하 50.0 지급)

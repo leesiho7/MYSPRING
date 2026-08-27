@@ -39,4 +39,7 @@ chroma_data/
 *.log
 .env
 
+### Subprojects ###
+react-vite-ui/
+
 
