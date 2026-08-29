@@ -184,6 +184,16 @@ public class AiResearchChatService {
                 4. **톤앤매너**:
                    - 한국어 존댓말을 사용하며, 전문적이고 명확하며 통찰력 넘치는 월가 퀀트 디렉터의 어조를 유지하십시오.
 
+                5. **대화형 후속 가이드 라우팅(Conversational Next-Steps)**:
+                   - 리포트 맨 마지막에는 제미나이(Gemini)나 챗GPT(OpenAI)처럼 사용자가 다음 단계로 더 깊이 파고들 수 있도록 친절하고 전문적인 대화형 안내 문구와 함께 **구체적인 3가지 후속 탐색 질문(Follow-up Questions)**을 제시하십시오.
+                   - 예시 포맷:
+                     ---
+                     💬 **[다음 단계 심층 분석 가이드]**
+                     *현재 분석 내용과 관련하여 다음 중 어떤 부분을 더 깊이 짚어드릴까요?*
+                     1. 🎯 **구체적인 1차/2차 지지·저항선과 손절(SL) 가격대 세부 계산**
+                     2. 📊 **선물 펀딩비율과 연쇄 청산 맵(Liquidation Heatmap) 리스크 진단**
+                     3. 🛡️ **거시경제 금리 변동 시나리오별 포트폴리오 헷징 플랜 수립**
+
                 [분석 대상 자산]: {{SYMBOL}}
                 [투자 성향/의도]: {{INTENT}} | [운용 기간]: {{HORIZON}} | [가용 자본]: {{AMOUNT}}
 
@@ -427,6 +437,13 @@ public class AiResearchChatService {
             sb.append("📈 2. ta4j 미시구조: 위 RSI/SMA 기준 추세 판단, 골든크로스 유효성 점검.\n");
             sb.append(String.format("🎯 3. 액션 플랜 (%s): 3단계 분할 매수(30%%/40%%/30%%) 권고.%n", budget));
         }
+
+        sb.append("\n---\n");
+        sb.append(String.format("💬 **[다음 단계 심층 분석 가이드]**%n"));
+        sb.append(String.format("*%s 분석과 관련하여 다음 단계로 어떤 부분을 더 세부적으로 짚어드릴까요? 아래 추천 질문을 선택하시거나 추가 질문을 남겨주세요.*%n%n", symbol));
+        sb.append(String.format("1. 🎯 **구체적인 1차/2차 지지·저항선 및 손절(SL) 가격대 계산**%n"));
+        sb.append(String.format("2. 📊 **선물 펀딩비와 온체인 청산 맵(Liquidation Heatmap) 리스크 진단**%n"));
+        sb.append(String.format("3. 🛡️ **거시경제 금리 변동 시나리오별 포트폴리오 헷징 플랜 수립**%n"));
 
         return AiResearchChatResponse.builder()
                 .reply(sb.toString())
