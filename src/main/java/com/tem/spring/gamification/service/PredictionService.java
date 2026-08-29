@@ -174,15 +174,15 @@ public class PredictionService {
         long bearCount = predictionRepository.countBearVotesBySymbol(sym);
         int total = (int) (bullCount + bearCount);
 
-        double bullPct = total > 0 ? ((double) bullCount / total) * 100.0 : 65.0;
-        double bearPct = total > 0 ? ((double) bearCount / total) * 100.0 : 35.0;
+        double bullPct = total > 0 ? ((double) bullCount / total) * 100.0 : 50.0;
+        double bearPct = total > 0 ? ((double) bearCount / total) * 100.0 : 50.0;
 
-        double aiScore = 0.55; // AI Bullish bias
+        double aiScore = 0.82;
         String aiDecision = "BULLISH";
 
         String winningSide = (aiDecision.equals("BULLISH") && bullPct >= 50.0) ? "CONSENSUS_AGREED" : "AI_VS_HUMAN_CONFLICT";
-        String commentary = String.format("Chroma AI(%s, 확신도 %.2f) vs 인간 집단지성(Bull %.1f%% / Bear %.1f%%, 총 %d표) 대결 중!",
-                aiDecision, aiScore, bullPct, bearPct, Math.max(total, 42));
+        String commentary = String.format("Aether AI Quant(%s, 확신도 %.0f%%) vs 인간 집단지성(Bull %.1f%% / Bear %.1f%%, 총 %d명 실시간 참여)",
+                aiDecision, aiScore * 100.0, bullPct, bearPct, total);
 
         return HiveMindBattleResponse.builder()
                 .symbol(sym)
@@ -190,7 +190,7 @@ public class PredictionService {
                 .aiDecision(aiDecision)
                 .humanBullPercentage(Math.round(bullPct * 10.0) / 10.0)
                 .humanBearPercentage(Math.round(bearPct * 10.0) / 10.0)
-                .totalHumanVotes(Math.max(total, 42))
+                .totalHumanVotes(total)
                 .winningSide(winningSide)
                 .battleCommentary(commentary)
                 .build();
