@@ -117,14 +117,19 @@ public class AuthService {
     public AuthResponse socialLogin(com.tem.spring.auth.dto.SocialLoginRequest request) {
         String provider = request.getProvider().toUpperCase();
         String providerId = request.getProviderId();
-        String socialUsername = provider + "_" + providerId;
+        
+        // 실제 구글/소셜 이메일이 전달된 경우 실제 이메일을 고유 username으로 사용
+        String socialUsername = (request.getEmail() != null && !request.getEmail().isBlank())
+                ? request.getEmail().trim().toLowerCase()
+                : provider + "_" + providerId;
 
-        log.info("[AuthService] Processing 1-Click Social Login: Provider={}, ProviderId={}", provider, providerId);
+        log.info("[AuthService] Processing Social Login: Provider={}, UserKey={}, Email={}, Nickname={}", 
+                provider, socialUsername, request.getEmail(), request.getNickname());
 
         UserEntity user = userRepository.findByUsername(socialUsername)
                 .orElseGet(() -> {
                     String baseNickname = request.getNickname() != null && !request.getNickname().isBlank()
-                            ? request.getNickname()
+                            ? request.getNickname().trim()
                             : provider + "_투자자_" + (providerId.length() > 4 ? providerId.substring(providerId.length() - 4) : providerId);
 
                     String finalNickname = baseNickname;
@@ -135,7 +140,7 @@ public class AuthService {
 
                     UserEntity newUser = UserEntity.builder()
                             .username(socialUsername)
-                            .password("N/A_OAUTH2_SECURED")
+                            .password("OAUTH2_SECURED_" + provider)
                             .nickname(finalNickname)
                             .walletAddress(request.getWalletAddress())
                             .tokenBalance(50.0)
@@ -144,7 +149,8 @@ public class AuthService {
                             .createdAt(LocalDateTime.now())
                             .build();
 
-                    log.info("[AuthService] Auto-registering new user from {} OAuth: Nickname={}", provider, finalNickname);
+                    log.info("[AuthService] Auto-registering real user from {} OAuth: Email/ID={}, Nickname={}", 
+                            provider, socialUsername, finalNickname);
                     return userRepository.save(newUser);
                 });
 
@@ -152,7 +158,7 @@ public class AuthService {
 
         return AuthResponse.builder()
                 .success(true)
-                .message(provider + " 간편 로그인 성공")
+                .message(provider + " 공식 계정 로그인 성공")
                 .userId(user.getId())
                 .username(user.getUsername())
                 .nickname(user.getNickname())

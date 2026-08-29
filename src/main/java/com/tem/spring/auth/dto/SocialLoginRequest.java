@@ -26,4 +26,8 @@ public class SocialLoginRequest {
     private String email;
 
     private String walletAddress;
+
+    private String idToken;
+
+    private String avatarUrl;
 }
