@@ -139,6 +139,35 @@ public class PredictionService {
     }
 
     @Transactional(readOnly = true)
+    public PredictionLeaderboardResponse getUserStats(Long userId) {
+        UserPredictionStatsEntity s = statsRepository.findByUserId(userId)
+                .orElseGet(() -> {
+                    UserEntity user = userRepository.findById(userId).orElse(null);
+                    return UserPredictionStatsEntity.builder()
+                            .user(user)
+                            .currentStreak(0)
+                            .maxStreak(0)
+                            .totalPredictions(0)
+                            .wonPredictions(0)
+                            .tier("NOVICE")
+                            .winRatePct(0.0)
+                            .build();
+                });
+
+        return PredictionLeaderboardResponse.builder()
+                .userId(userId)
+                .nickname(s.getUser() != null ? s.getUser().getNickname() : "Trader")
+                .tier(s.getTier())
+                .currentStreak(s.getCurrentStreak())
+                .maxStreak(s.getMaxStreak())
+                .winRatePct(s.getWinRatePct())
+                .totalPredictions(s.getTotalPredictions())
+                .wonPredictions(s.getWonPredictions())
+                .totalEarnedTokens(s.getTotalEarnedTokens())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
     public HiveMindBattleResponse getHiveMindBattle(String symbol) {
         String sym = symbol != null ? symbol.toUpperCase() : "BTCUSDT";
         long bullCount = predictionRepository.countBullVotesBySymbol(sym);

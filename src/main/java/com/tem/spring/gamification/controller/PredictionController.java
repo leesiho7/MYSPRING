@@ -51,7 +51,15 @@ public class PredictionController {
     }
 
     /**
-     * 4. AI vs 인간 집단지성 배틀 현황 게이지 조회 API
+     * 4. 특정 유저의 실시간 예측 통계 및 현재 연승(Streak) 조회 API
+     */
+    @GetMapping("/user-stats/{userId}")
+    public ResponseEntity<PredictionLeaderboardResponse> getUserStats(@PathVariable Long userId) {
+        return ResponseEntity.ok(predictionService.getUserStats(userId));
+    }
+
+    /**
+     * 5. AI vs 인간 집단지성 배틀 현황 게이지 조회 API
      */
     @GetMapping("/battle")
     public ResponseEntity<HiveMindBattleResponse> getHiveMindBattle(
