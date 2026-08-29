@@ -149,12 +149,13 @@ public class StreakRewardClaimService {
     }
 
     /**
-     * 실시간 100 USDT 에스크로 풀 상태 및 잔여 수량 조회
+     * 실시간 온체인 에스크로 풀 상태 및 잔여 수량 조회 (실제 입금 전에는 0.00 USDT 대기 상태)
      */
     @Transactional(readOnly = true)
     public com.tem.spring.gamification.dto.EscrowPoolStatusDto getEscrowPoolStatus() {
-        double initialCapacity = 100.0;
-        int maxWinners = 10;
+        // 실제 운영자가 이벤트 예치금을 온체인 지갑에 입금하기 전까지는 0.00 USDT로 표출
+        double initialCapacity = 0.0;
+        int maxWinners = (int) (initialCapacity / 10.0);
         double rewardPerWinner = 10.0;
 
         long winnersCount = rewardLogRepository.countByReasonContaining("10연승");
@@ -162,7 +163,7 @@ public class StreakRewardClaimService {
         double claimedAmount = totalWinners * rewardPerWinner;
         double currentBalance = Math.max(0.0, initialCapacity - claimedAmount);
         int remainingWinners = Math.max(0, maxWinners - totalWinners);
-        String status = currentBalance > 0 ? "ACTIVE" : "EXHAUSTED";
+        String status = currentBalance > 0 ? "ACTIVE" : "STANDBY";
 
         return com.tem.spring.gamification.dto.EscrowPoolStatusDto.builder()
                 .poolName("1-HOUR QUICK STRIKE PREDICTION EVENT POOL")
