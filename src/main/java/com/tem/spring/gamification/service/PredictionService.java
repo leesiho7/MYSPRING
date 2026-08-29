@@ -46,6 +46,14 @@ public class PredictionService {
                 .orElseThrow(() -> new IllegalArgumentException("유저를 찾을 수 없습니다. ID: " + req.getUserId()));
 
         boolean is1H = "DIRECTION_1H".equalsIgnoreCase(req.getPredictionType());
+        LocalDateTime now = LocalDateTime.now();
+
+        // [15-Minute Anti-Sniping Lockout Window] 00분~44분 제출 활성화, 45분~59분 락아웃 관전 모드
+        if (is1H && now.getMinute() >= 45) {
+            log.warn("[PredictionService] Submission blocked: 15-minute lockout active (minute: {}) for user {}", now.getMinute(), req.getUserId());
+            throw new IllegalStateException("해당 1시간 라운드는 마감 15분 전(XX:45:00)에 진입하여 신규 예측 제출이 마감되었습니다. 실시간 관전 모드로 전환되었습니다.");
+        }
+
         List<Candle> candles = ingestionService.getHistoricalData(req.getSymbol(), is1H ? TimeFrame.H1 : TimeFrame.D1, 5);
         double currentPrice = candles.isEmpty() ? 67840.0 : candles.get(candles.size() - 1).getClose();
 
@@ -58,14 +66,11 @@ public class PredictionService {
                 .entryPrice(currentPrice)
                 .status("PENDING")
                 .rewardTokens(0.0)
-                .targetTime(LocalDateTime.now().plusHours(is1H ? 1 : 24))
-                .createdAt(LocalDateTime.now())
+                .targetTime(now.plusHours(is1H ? 1 : 24))
+                .createdAt(now)
                 .build();
 
         PredictionEntity saved = predictionRepository.save(prediction);
-
-        // 참가 보상 0.5 AETHER
-        tokenRewardService.issueTokenReward(user, 0.5, is1H ? "1H 시장 예측 챌린지 참가 보상" : "24H 시장 예측 챌린지 참가 보상");
 
         return mapToResponse(saved);
     }
@@ -94,22 +99,20 @@ public class PredictionService {
             won = diffPct <= 1.0; // 오차 1% 이내 시 적중
         }
 
-        double reward = 0.0;
         if (won) {
             pred.setStatus("WON");
-            reward = 10.0; // 적중 보상 10.0 AETHER
-            pred.setRewardTokens(reward);
-            tokenRewardService.issueTokenReward(pred.getUser(), reward, "24H 예측 챌린지 적중 보상 (ID: " + pred.getId() + ")");
+            pred.setRewardTokens(0.0);
         } else {
             pred.setStatus("LOST");
+            pred.setRewardTokens(0.0);
         }
 
         PredictionEntity saved = predictionRepository.save(pred);
 
-        // 유저 전적 및 연승(Streak) 통계 갱신
+        // 유저 전적 및 연승(Streak) 통계 갱신 (10연승 시 에스크로 $10 USDT 대상)
         UserPredictionStatsEntity stats = statsRepository.findByUserId(pred.getUser().getId())
                 .orElseGet(() -> UserPredictionStatsEntity.builder().user(pred.getUser()).build());
-        stats.updateStats(won, reward);
+        stats.updateStats(won, 0.0);
         statsRepository.save(stats);
 
         return mapToResponse(saved);
