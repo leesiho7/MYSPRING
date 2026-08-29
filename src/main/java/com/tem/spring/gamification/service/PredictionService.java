@@ -45,26 +45,27 @@ public class PredictionService {
         UserEntity user = userRepository.findById(req.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("유저를 찾을 수 없습니다. ID: " + req.getUserId()));
 
-        List<Candle> candles = ingestionService.getHistoricalData(req.getSymbol(), TimeFrame.D1, 5);
-        double currentPrice = candles.isEmpty() ? 65000.0 : candles.get(candles.size() - 1).getClose();
+        boolean is1H = "DIRECTION_1H".equalsIgnoreCase(req.getPredictionType());
+        List<Candle> candles = ingestionService.getHistoricalData(req.getSymbol(), is1H ? TimeFrame.H1 : TimeFrame.D1, 5);
+        double currentPrice = candles.isEmpty() ? 67840.0 : candles.get(candles.size() - 1).getClose();
 
         PredictionEntity prediction = PredictionEntity.builder()
                 .user(user)
                 .symbol(req.getSymbol().toUpperCase())
-                .predictionType(req.getPredictionType())
+                .predictionType(req.getPredictionType() != null ? req.getPredictionType() : "DIRECTION_1H")
                 .predictedDirection(req.getPredictedDirection() != null ? req.getPredictedDirection().toUpperCase() : "BULL")
                 .predictedPrice(req.getPredictedPrice())
                 .entryPrice(currentPrice)
                 .status("PENDING")
                 .rewardTokens(0.0)
-                .targetTime(LocalDateTime.now().plusHours(24))
+                .targetTime(LocalDateTime.now().plusHours(is1H ? 1 : 24))
                 .createdAt(LocalDateTime.now())
                 .build();
 
         PredictionEntity saved = predictionRepository.save(prediction);
 
         // 참가 보상 0.5 AETHER
-        tokenRewardService.issueTokenReward(user, 0.5, "24H 시장 예측 챌린지 참가 보상");
+        tokenRewardService.issueTokenReward(user, 0.5, is1H ? "1H 시장 예측 챌린지 참가 보상" : "24H 시장 예측 챌린지 참가 보상");
 
         return mapToResponse(saved);
     }
@@ -78,17 +79,17 @@ public class PredictionService {
             return mapToResponse(pred);
         }
 
-        double settlePrice = customCurrentPrice != null ? customCurrentPrice : pred.getEntryPrice() * 1.025; // 시뮬레이션: +2.5% 상승
+        double settlePrice = customCurrentPrice != null ? customCurrentPrice : pred.getEntryPrice() * 1.008; // 시뮬레이션: 1H 변동성 정산
         pred.setSettledPrice(settlePrice);
 
         boolean won = false;
-        if ("DIRECTION_24H".equals(pred.getPredictionType())) {
-            if ("BULL".equals(pred.getPredictedDirection())) {
+        if ("DIRECTION_1H".equalsIgnoreCase(pred.getPredictionType()) || "DIRECTION_24H".equalsIgnoreCase(pred.getPredictionType())) {
+            if ("BULL".equalsIgnoreCase(pred.getPredictedDirection()) || "UP".equalsIgnoreCase(pred.getPredictedDirection())) {
                 won = settlePrice >= pred.getEntryPrice();
             } else {
                 won = settlePrice < pred.getEntryPrice();
             }
-        } else if ("PRICE_SNIPER".equals(pred.getPredictionType()) && pred.getPredictedPrice() != null) {
+        } else if ("PRICE_SNIPER".equalsIgnoreCase(pred.getPredictionType()) && pred.getPredictedPrice() != null) {
             double diffPct = Math.abs(settlePrice - pred.getPredictedPrice()) / pred.getPredictedPrice() * 100.0;
             won = diffPct <= 1.0; // 오차 1% 이내 시 적중
         }
