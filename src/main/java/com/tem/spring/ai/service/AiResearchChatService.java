@@ -137,8 +137,17 @@ public class AiResearchChatService {
         if (p.contains("리플") || p.contains("xrp") || s.contains("XRP")) {
             return new AssetMetadata("XRPUSDT", "리플", "XRP", AssetClass.CRYPTO, "USD", "$", "BINANCE", 2.15);
         }
+        if (p.contains("바이낸스") || p.contains("bnb") || s.contains("BNB")) {
+            return new AssetMetadata("BNBUSDT", "바이낸스코인", "Binance Coin", AssetClass.CRYPTO, "USD", "$", "BINANCE", 648.20);
+        }
+        if (p.contains("에이다") || p.contains("ada") || p.contains("카르다노") || s.contains("ADA")) {
+            return new AssetMetadata("ADAUSDT", "에이다", "Cardano", AssetClass.CRYPTO, "USD", "$", "BINANCE", 0.742);
+        }
         if (p.contains("수이") || p.contains("sui") || s.contains("SUI")) {
-            return new AssetMetadata("SUIUSDT", "수이", "Sui", AssetClass.CRYPTO, "USD", "$", "BINANCE", 2.85);
+            return new AssetMetadata("SUIUSDT", "수이", "Sui", AssetClass.CRYPTO, "USD", "$", "BINANCE", 3.28);
+        }
+        if (p.contains("도지") || p.contains("doge") || s.contains("DOGE")) {
+            return new AssetMetadata("DOGEUSDT", "도지코인", "Dogecoin", AssetClass.CRYPTO, "USD", "$", "BINANCE", 0.264);
         }
         return new AssetMetadata("BTCUSDT", "비트코인", "Bitcoin", AssetClass.CRYPTO, "USD", "$", "BINANCE", 77640.0);
     }
