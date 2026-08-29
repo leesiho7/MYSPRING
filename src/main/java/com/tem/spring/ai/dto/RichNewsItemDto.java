@@ -18,7 +18,11 @@ public class RichNewsItemDto {
     private String category; // ALL, CRYPTO, KOREA, US_TECH, MACRO, DART
     private String categoryLabel;
     private String title;
+    private String titleKo;
+    private String titleCn;
     private String snippet;
+    private String snippetKo;
+    private String snippetCn;
     private String source;
     private String timestamp;
     private String imageUrl;

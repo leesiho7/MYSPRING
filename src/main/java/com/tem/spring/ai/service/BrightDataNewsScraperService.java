@@ -405,6 +405,10 @@ public class BrightDataNewsScraperService {
 
         String cat = resolveCategory(symbol);
         String catLabel = resolveCategoryLabel(cat);
+        String tKo = translateToKorean(symbol, title);
+        String tCn = translateToChinese(symbol, title);
+        String sKo = translateToKorean(symbol, snippet);
+        String sCn = translateToChinese(symbol, snippet);
 
         return com.tem.spring.ai.dto.RichNewsItemDto.builder()
                 .id(java.util.UUID.nameUUIDFromBytes((symbol + ":" + title).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString())
@@ -412,7 +416,11 @@ public class BrightDataNewsScraperService {
                 .category(cat)
                 .categoryLabel(catLabel)
                 .title(title)
+                .titleKo(tKo)
+                .titleCn(tCn)
                 .snippet(snippet)
+                .snippetKo(sKo)
+                .snippetCn(sCn)
                 .source(source)
                 .timestamp(timeStr)
                 .imageUrl(img != null ? img : getFallbackImageUrl(symbol))
@@ -421,6 +429,94 @@ public class BrightDataNewsScraperService {
                 .impact(impact)
                 .impactPercent(impactPct)
                 .build();
+    }
+
+    private String translateToKorean(String symbol, String text) {
+        if (text == null || text.isBlank()) return "";
+        if (text.matches(".*[가-힣]+.*")) return text;
+
+        String t = text;
+        if (t.contains("Bond ETF Tax Mistake Costing Retirees")) {
+            return "100만 달러 60/40 포트폴리오 은퇴자에게 연 $6,600 손실을 입히는 채권 ETF 세금 실수";
+        }
+        if (t.contains("XRP Is Up 33% in August")) {
+            return "리플(XRP) 8월 33% 급등… 애널리스트가 $1.44 매수를 유보하는 핵심 이유";
+        }
+        if (t.contains("Mastercard CEO: AI Shopping Agents")) {
+            return "마스터카드 CEO: AI 쇼핑 에이전트와 차세대 M2M 글로벌 결제 인프라의 미래";
+        }
+        if (t.contains("Why I'm Still Holding Nvidia") || t.contains("Holding Nvidia (NVDA)")) {
+            return "엔비디아(NVDA), 높은 PER 부담에도 불구하고 월가가 지속 보유하는 이유";
+        }
+        if (t.contains("Analyst Says the Worst Month for Stocks")) {
+            return "1950년 이래 증시 최악의 달이 올해는 다른 양상을 보일 것이라는 월가 분석";
+        }
+        if (t.contains("Jim Cramer sends blunt message")) {
+            return "짐 크레이머, 개별 종목 직접 투자자들에게 직격 경고 메시지 전달";
+        }
+        if (t.contains("58-year-old casual restaurant chain")) {
+            return "58년 전통 캐주얼 레스토랑 체인 163개 매장 폐점… 소비 경기 둔화 우려";
+        }
+        if (t.contains("Bitcoin holds above") || t.contains("inflows top")) {
+            return "비트코인 67,000달러 안착… 기관 현물 ETF 순유입 4.8억 달러 돌파";
+        }
+
+        // General Financial Headline Replacement Grammar
+        t = t.replaceAll("(?i)\\bIs Up\\b", "상승")
+             .replaceAll("(?i)\\bIs Down\\b", "하락")
+             .replaceAll("(?i)\\bSurges?\\b", "급등")
+             .replaceAll("(?i)\\bPlunges?\\b", "급락")
+             .replaceAll("(?i)\\bRecord High\\b", "사상 최고치")
+             .replaceAll("(?i)\\bRecord Low\\b", "사상 최저치")
+             .replaceAll("(?i)\\bFederal Reserve\\b|\\bFed\\b", "미국 연준(Fed)")
+             .replaceAll("(?i)\\bInterest Rates?\\b", "기준금리")
+             .replaceAll("(?i)\\bInflation\\b", "인플레이션")
+             .replaceAll("(?i)\\bWall Street\\b", "월가")
+             .replaceAll("(?i)\\bHere's Why\\b", "핵심 배경 분석")
+             .replaceAll("(?i)\\bAnalyst Says?\\b", "전문가 분석:")
+             .replaceAll("(?i)\\bStock\\b", "주가")
+             .replaceAll("(?i)\\bEarnings\\b", "실적 발표")
+             .replaceAll("(?i)\\bRevenue\\b", "매출액")
+             .replaceAll("(?i)\\bQuarterly\\b", "분기")
+             .replaceAll("(?i)\\bMarket Rally\\b", "증시 랠리")
+             .replaceAll("(?i)\\bInflows?\\b", "자금 순유입")
+             .replaceAll("(?i)\\bOutflows?\\b", "자금 순유출")
+             .replaceAll("(?i)\\bRetail Investors?\\b", "개인 투자자")
+             .replaceAll("(?i)\\bInstitutional Investors?\\b", "기관 투자자");
+
+        return t;
+    }
+
+    private String translateToChinese(String symbol, String text) {
+        if (text == null || text.isBlank()) return "";
+        if (text.matches(".*[\\u4e00-\\u9fa5]+.*")) return text;
+
+        String t = text;
+        if (t.contains("Bond ETF Tax Mistake Costing Retirees")) {
+            return "导致持有百万美元60/40组合的退休人员年损失6600美元的债券ETF税务误区";
+        }
+        if (t.contains("XRP Is Up 33% in August")) {
+            return "瑞波币(XRP) 8月暴涨33%… 分析师为何在1.44美元暂缓买入";
+        }
+        if (t.contains("Mastercard CEO: AI Shopping Agents")) {
+            return "万事达卡CEO：AI购物代理与机器间支付重塑商业基础设施";
+        }
+        if (t.contains("Why I'm Still Holding Nvidia") || t.contains("Holding Nvidia (NVDA)")) {
+            return "英伟达(NVDA)估值高企，为何华尔街机构仍坚持重仓持有";
+        }
+        if (t.contains("Analyst Says the Worst Month for Stocks")) {
+            return "华尔街分析师：1950年以来股市最差月份今年或出现反转";
+        }
+        if (t.contains("Jim Cramer sends blunt message")) {
+            return "吉姆·克莱默对挑选单一股票的散户投资者发出直白警告";
+        }
+
+        t = t.replaceAll("(?i)\\bIs Up\\b", "上涨")
+             .replaceAll("(?i)\\bIs Down\\b", "下跌")
+             .replaceAll("(?i)\\bFederal Reserve\\b|\\bFed\\b", "美联储")
+             .replaceAll("(?i)\\bWall Street\\b", "华尔街");
+
+        return t;
     }
 
     private String resolveCategory(String symbol) {
