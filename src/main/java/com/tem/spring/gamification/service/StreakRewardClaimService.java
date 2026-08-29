@@ -58,7 +58,13 @@ public class StreakRewardClaimService {
                     stats.getCurrentStreak()));
         }
 
-        // 3. Cryptomus Payout API 호출 ($10.00 USDT 온체인 자동 송금)
+        // 3. 에스크로 풀 잔액 검증 (100 USDT 한도 초과 방지)
+        com.tem.spring.gamification.dto.EscrowPoolStatusDto poolStatus = getEscrowPoolStatus();
+        if (poolStatus.getCurrentBalance() < 10.0) {
+            throw new IllegalStateException("100 USDT 에스크로 풀 보상 예치금이 모두 소진되었습니다. 다음 시즌 이벤트를 기대해 주세요!");
+        }
+
+        // 4. Cryptomus Payout API 호출 ($10.00 USDT 온체인 자동 송금)
         String orderId = "STREAK10-" + user.getId() + "-" + System.currentTimeMillis();
         String network = req.getNetwork() != null ? req.getNetwork().toLowerCase() : "polygon"; // 가스비 절감을 위해 Polygon 기본
 
@@ -80,7 +86,7 @@ public class StreakRewardClaimService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // 4. 출금 및 회계 감사 원장에 기록
+        // 5. 출금 및 회계 감사 원장에 기록
         WithdrawalEntity withdrawal = WithdrawalEntity.builder()
                 .user(user)
                 .amount(10.0)
@@ -103,12 +109,12 @@ public class StreakRewardClaimService {
                 .build();
         rewardLogRepository.save(rewardLog);
 
-        // 5. 연승 보상 수령 후 연승 카운트 차감 (또는 유지 정책)
+        // 6. 연승 보상 수령 후 연승 카운트 차감 (또는 유지 정책)
         // 10연승 1회 보상 수령 시 currentStreak를 0으로 리셋하여 중복 Claim 방지
         stats.setCurrentStreak(0);
         statsRepository.save(stats);
 
-        // 6. 텔레그램 연동되어 있으면 즉시 1:1 축하 푸시 알림 발송
+        // 7. 텔레그램 연동되어 있으면 즉시 1:1 축하 푸시 알림 발송
         if (user.getTelegramChatId() != null && !user.getTelegramChatId().isBlank()) {
             String telegramMsg = String.format(
                     "🏆 *[10연승 잭팟 달성 & $10 USDT 지급 완료!]*\n\n" +
@@ -139,6 +145,37 @@ public class StreakRewardClaimService {
                 .txHash(txHash)
                 .status("COMPLETED")
                 .claimedAt(now)
+                .build();
+    }
+
+    /**
+     * 실시간 100 USDT 에스크로 풀 상태 및 잔여 수량 조회
+     */
+    @Transactional(readOnly = true)
+    public com.tem.spring.gamification.dto.EscrowPoolStatusDto getEscrowPoolStatus() {
+        double initialCapacity = 100.0;
+        int maxWinners = 10;
+        double rewardPerWinner = 10.0;
+
+        long winnersCount = rewardLogRepository.countByReasonContaining("10연승");
+        int totalWinners = (int) winnersCount;
+        double claimedAmount = totalWinners * rewardPerWinner;
+        double currentBalance = Math.max(0.0, initialCapacity - claimedAmount);
+        int remainingWinners = Math.max(0, maxWinners - totalWinners);
+        String status = currentBalance > 0 ? "ACTIVE" : "EXHAUSTED";
+
+        return com.tem.spring.gamification.dto.EscrowPoolStatusDto.builder()
+                .poolName("1-HOUR QUICK STRIKE PREDICTION EVENT POOL")
+                .initialCapacity(initialCapacity)
+                .currentBalance(currentBalance)
+                .claimedAmount(claimedAmount)
+                .totalWinners(totalWinners)
+                .maxWinners(maxWinners)
+                .remainingWinners(remainingWinners)
+                .rewardPerWinner(rewardPerWinner)
+                .escrowAddress("0xb0390a087488E304cA32996532Ab9f40028511fE")
+                .network("POLYGON")
+                .status(status)
                 .build();
     }
 }

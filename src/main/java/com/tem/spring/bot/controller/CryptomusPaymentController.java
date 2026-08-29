@@ -98,4 +98,12 @@ public class CryptomusPaymentController {
         ClaimStreakRewardResponse response = streakRewardClaimService.claimStreakReward(request);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * 4. [10-Win Streak] 100 USDT 온체인 에스크로 보상 풀 실시간 잔액 및 당첨자 현황 조회 API
+     */
+    @GetMapping("/gamification/escrow-pool-status")
+    public ResponseEntity<com.tem.spring.gamification.dto.EscrowPoolStatusDto> getEscrowPoolStatus() {
+        return ResponseEntity.ok(streakRewardClaimService.getEscrowPoolStatus());
+    }
 }

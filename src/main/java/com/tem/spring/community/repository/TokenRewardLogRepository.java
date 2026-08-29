@@ -14,4 +14,6 @@ public interface TokenRewardLogRepository extends JpaRepository<TokenRewardLogEn
 
     @Query("SELECT r FROM TokenRewardLogEntity r WHERE r.recipient.id = :recipientId ORDER BY r.rewardedAt DESC")
     List<TokenRewardLogEntity> findRecentRewardsByRecipientId(@Param("recipientId") Long recipientId, Pageable pageable);
+
+    long countByReasonContaining(String reasonKeyword);
 }

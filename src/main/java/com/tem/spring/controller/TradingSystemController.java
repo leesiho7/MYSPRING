@@ -34,6 +34,7 @@ public class TradingSystemController {
     private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.repository.UserQueryRepository> userQueryRepositoryProvider;
     private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.service.ProactiveNewsWarmupBatchService> warmupBatchServiceProvider;
     private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.service.BrightDataNewsScraperService> brightDataNewsScraperServiceProvider;
+    private final com.tem.spring.gamification.service.StreakRewardClaimService streakRewardClaimService;
 
     /**
      * 1. OpenBB 스타일 데이터 수집 조회 API
@@ -275,6 +276,23 @@ public class TradingSystemController {
             return ResponseEntity.ok(List.of());
         }
         return ResponseEntity.ok(scraper.getRichNewsFeed(channel, symbol));
+    }
+
+    /**
+     * 16. [10-Win Streak] 100 USDT 온체인 에스크로 보상 풀 실시간 잔액 및 당첨자 현황 조회 API
+     */
+    @GetMapping("/gamification/escrow-pool-status")
+    public ResponseEntity<com.tem.spring.gamification.dto.EscrowPoolStatusDto> getEscrowPoolStatus() {
+        return ResponseEntity.ok(streakRewardClaimService.getEscrowPoolStatus());
+    }
+
+    /**
+     * 17. [10연승 미션] $10 USDT 보상 즉시 Claim (Payout) API
+     */
+    @PostMapping("/gamification/claim-streak-reward")
+    public ResponseEntity<com.tem.spring.gamification.dto.ClaimStreakRewardResponse> claimStreakReward(
+            @jakarta.validation.Valid @RequestBody com.tem.spring.gamification.dto.ClaimStreakRewardRequest request) {
+        return ResponseEntity.ok(streakRewardClaimService.claimStreakReward(request));
     }
 }
 
