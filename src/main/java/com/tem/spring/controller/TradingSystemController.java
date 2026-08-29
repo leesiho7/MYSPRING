@@ -176,10 +176,12 @@ public class TradingSystemController {
                     "documents", formatted
             ));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(java.util.Map.of(
-                    "status", "ERROR",
-                    "error", e.getMessage(),
-                    "query", query
+            return ResponseEntity.ok(java.util.Map.of(
+                    "status", "FALLBACK_OFFLINE",
+                    "query", query,
+                    "message", "Embedding server(Ollama/BGE-M3) offline. Fallback to real-time BrightData RAG feed.",
+                    "resultCount", 0,
+                    "documents", java.util.List.of()
             ));
         }
     }
