@@ -166,7 +166,7 @@ public class AiResearchChatService {
         if (chatClient != null && !prompt.isBlank()) {
             try {
                 String systemPrompt = buildSystemPrompt(meta, req, marketContext);
-                String userPrompt = buildUserPrompt(req, prompt);
+                String userPrompt = buildUserPrompt(req, prompt, meta);
 
                 log.info("[AiResearchChat] 🚀 Sending isolated asset prompt to Qwen2.5 for {} ({})", meta.nameKo(), symbol);
                 String llmReply = chatClient.prompt()
@@ -268,7 +268,7 @@ public class AiResearchChatService {
                 .replace("{{MARKET_CONTEXT}}", marketContext != null ? marketContext : "(실시간 데이터 로드 완료)");
     }
 
-    private String buildUserPrompt(AiResearchChatRequest req, String prompt) {
+    private String buildUserPrompt(AiResearchChatRequest req, String prompt, AssetMetadata meta) {
         StringBuilder sb = new StringBuilder();
         if (req.getHistory() != null && !req.getHistory().isEmpty()) {
             sb.append("[이전 대화 히스토리]\n");
@@ -277,7 +277,17 @@ public class AiResearchChatService {
             }
             sb.append("\n");
         }
-        sb.append("[사용자 질문]:\n").append(prompt);
+        sb.append(String.format("""
+                [사용자 질문]: %s
+
+                [출력 지침]:
+                사용자에게 추가 질문을 되묻지 말고, 시스템 프롬프트에 제공된 %s(%s)의 실시간 시장가, 20일선 지지선, RSI 지표, 펀더멘털 뉴스를 인용하여 즉시 완성된 기관급 퀀트 리포트를 출력하십시오.
+                포맷:
+                1. 📊 시장 미시구조 및 ta4j 정량 지표 진단 (현재가 %s, RSI, SMA20 지지선 명시)
+                2. 🌐 매크로 & 실시간 뉴스/수급 분석
+                3. 🎯 분할 매수 비중 & 손절 기준선 (1차 30%%, 2차 40%%, 3차 30%%)
+                """, prompt, meta.nameKo(), meta.symbol(),
+                meta.assetClass() == AssetClass.KR_EQUITY ? String.format("%,d원", (long) meta.basePrice()) : String.format("%s%,.2f", meta.currencySymbol(), meta.basePrice())));
         return sb.toString();
     }
 
