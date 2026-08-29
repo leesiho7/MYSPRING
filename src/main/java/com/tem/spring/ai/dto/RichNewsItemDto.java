@@ -31,4 +31,7 @@ public class RichNewsItemDto {
     private String impact; // HIGH, MED, LOW
     private int impactPercent; // 0 ~ 100%
     private String link;
+    private String actionGuideKo;
+    private String actionGuideEn;
+    private String actionGuideCn;
 }

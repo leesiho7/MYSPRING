@@ -295,7 +295,8 @@ public class BrightDataNewsScraperService {
             case "CRYPTO" -> {
                 symbolsToFetch.add("BTCUSDT");
                 symbolsToFetch.add("ETHUSDT");
-                symbolsToFetch.add("SOLUSDT");
+                symbolsToFetch.add("SOL");
+                symbolsToFetch.add("XRP");
             }
             case "KOREA" -> {
                 symbolsToFetch.add("005930.KS");
@@ -306,20 +307,28 @@ public class BrightDataNewsScraperService {
                 symbolsToFetch.add("NVDA");
                 symbolsToFetch.add("TSLA");
                 symbolsToFetch.add("AAPL");
+                symbolsToFetch.add("MSFT");
             }
             case "MACRO" -> {
-                symbolsToFetch.add("FOMC");
+                symbolsToFetch.add("FED");
                 symbolsToFetch.add("CPI");
-                symbolsToFetch.add("USD/KRW");
+                symbolsToFetch.add("GOLD");
             }
             default -> {
+                // If user is currently looking at a specific asset, prioritize it at index 0!
                 if (currentSymbol != null && !currentSymbol.isBlank()) {
-                    symbolsToFetch.add(currentSymbol.toUpperCase().trim());
+                    String clean = currentSymbol.toUpperCase().replace("/USD", "").replace("/USDT", "").trim();
+                    if (!clean.isBlank()) symbolsToFetch.add(clean);
                 }
+                // Balanced Core Universe across all 4 categories (No single asset dominance)
                 symbolsToFetch.add("BTCUSDT");
                 symbolsToFetch.add("NVDA");
-                symbolsToFetch.add("005930.KS");
+                symbolsToFetch.add("SOL");
+                symbolsToFetch.add("TSLA");
                 symbolsToFetch.add("ETHUSDT");
+                symbolsToFetch.add("AAPL");
+                symbolsToFetch.add("005930.KS");
+                symbolsToFetch.add("FED");
             }
         }
 
@@ -409,6 +418,9 @@ public class BrightDataNewsScraperService {
         String tCn = translateToChinese(symbol, title);
         String sKo = translateToKorean(symbol, snippet);
         String sCn = translateToChinese(symbol, snippet);
+        String guideKo = generateActionGuideKo(symbol, sentiment, impact, cat);
+        String guideEn = generateActionGuideEn(symbol, sentiment, impact, cat);
+        String guideCn = generateActionGuideCn(symbol, sentiment, impact, cat);
 
         return com.tem.spring.ai.dto.RichNewsItemDto.builder()
                 .id(java.util.UUID.nameUUIDFromBytes((symbol + ":" + title).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString())
@@ -428,7 +440,67 @@ public class BrightDataNewsScraperService {
                 .sentimentScore(Math.round(score * 100.0) / 100.0)
                 .impact(impact)
                 .impactPercent(impactPct)
+                .actionGuideKo(guideKo)
+                .actionGuideEn(guideEn)
+                .actionGuideCn(guideCn)
                 .build();
+    }
+
+    private String generateActionGuideKo(String symbol, String sentiment, String impact, String cat) {
+        String sym = symbol.replace(".KS", "").replace("USDT", "").trim();
+        if ("CRYPTO".equals(cat)) {
+            if ("BULLISH".equals(sentiment)) {
+                return "$" + sym + " 기관 ETF 순유입 및 온체인 고래 매수세 지속. 단기 1차 지지선에서 분할 매수(DCA) 및 상방 전고점 돌파 추종 권장.";
+            } else if ("BEARISH".equals(sentiment)) {
+                return "$" + sym + " 선물 미결제약정 과열 및 롱 청산 압력 주의. 지지선 이탈 시 손절선(Stop-Loss)을 철저히 준수하고 관망 권장.";
+            } else {
+                return "$" + sym + " 방향성 탐색 국면. 주요 지지/저항 박스권 내에서 ta4j 볼린저 밴드 하단 터치 시 단기 반등 매매 유효.";
+            }
+        } else if ("US_TECH".equals(cat)) {
+            if ("BULLISH".equals(sentiment)) {
+                return "$" + sym + " AI 데이터센터 및 실적 모멘텀 유효. 20일 이동평균선(SMA20) 눌림목 발생 시 분할 진입 추천.";
+            } else if ("BEARISH".equals(sentiment)) {
+                return "$" + sym + " 밸류에이션 부담 및 단기 차익 실현 매물 출회. 반등 시 비중 축소 또는 저점 지지 확인 후 재진입.";
+            } else {
+                return "$" + sym + " 실적 발표 및 거시 경제 이벤트 대기. 중립 스탠스로 포지션 유지 및 변동성 축소 대기.";
+            }
+        } else if ("MACRO".equals(cat)) {
+            if ("BULLISH".equals(sentiment)) {
+                return "글로벌 유동성 완화 및 위험자산 선호 심리 회복. 메이저 가상자산 및 성장주 포지션 비중 확대 전략 유리.";
+            } else if ("BEARISH".equals(sentiment)) {
+                return "긴축 경계감 및 금리 변동성 확대. 현금 및 스테이블코인 비중을 30% 이상 확보하여 리스크 관리 우선.";
+            } else {
+                return "연준 지표 발표 경계감 지속. 변동성 돌파 지표(ta4j RSI)를 실시간 모니터링하며 확인 매매 권장.";
+            }
+        } else {
+            if ("BULLISH".equals(sentiment)) {
+                return "$" + sym + " 외국인/기관 순매수 유입 확인. 1차 저항선 돌파 시 추세 추종 전략 권장.";
+            } else {
+                return "$" + sym + " 업황 사이클 및 실적 모멘텀 체크 필요. 박스권 하단 지지력 확인 후 보수적 접근 권장.";
+            }
+        }
+    }
+
+    private String generateActionGuideEn(String symbol, String sentiment, String impact, String cat) {
+        String sym = symbol.replace(".KS", "").replace("USDT", "").trim();
+        if ("BULLISH".equals(sentiment)) {
+            return "$" + sym + " Institutional net inflows and upside momentum verified. Recommend DCA accumulation at 1st support.";
+        } else if ("BEARISH".equals(sentiment)) {
+            return "$" + sym + " Overleveraged liquidation risk detected. Strictly enforce stop-loss and maintain defensive positioning.";
+        } else {
+            return "$" + sym + " Range-bound consolidation in progress. Monitor ta4j Bollinger Band bounce for mean-reversion setups.";
+        }
+    }
+
+    private String generateActionGuideCn(String symbol, String sentiment, String impact, String cat) {
+        String sym = symbol.replace(".KS", "").replace("USDT", "").trim();
+        if ("BULLISH".equals(sentiment)) {
+            return "$" + sym + " 机构资金持续净流入，上行动能强劲。建议在第一支撑位分批定投布局。";
+        } else if ("BEARISH".equals(sentiment)) {
+            return "$" + sym + " 杠杆过热及短期清算压力增大。建议严格执行止损策略，逢高减仓。";
+        } else {
+            return "$" + sym + " 处于箱体震荡整理阶段。关注ta4j指标支撑确认，保守观望为主。";
+        }
     }
 
     private String translateToKorean(String symbol, String text) {
