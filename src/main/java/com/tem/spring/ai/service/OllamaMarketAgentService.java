@@ -54,20 +54,25 @@ public class OllamaMarketAgentService {
     }
 
     public QualitativeInsight analyzeMarketSentiment(String symbol) {
-        List<String> headlines = ragService.retrieveRelevantNews(symbol);
+        return analyzeMarketSentiment(symbol, null);
+    }
+
+    public QualitativeInsight analyzeMarketSentiment(String symbol, com.tem.spring.ai.dto.UnifiedMarketContext context) {
+        List<String> headlines = context != null && context.getKeyHeadlines() != null ?
+                context.getKeyHeadlines() : ragService.retrieveRelevantNews(symbol);
         String newsContext = String.join("\n- ", headlines);
+        String quantBlock = context != null ? context.toPromptBlock() : "[BGE-M3 RAG 뉴스]\n- " + newsContext;
 
         if (chatClient != null) {
             try {
                 String prompt = """
                         당신은 골드만삭스/블룸버그 인텔리전스 퀀트 데스크의 수석 금융 리서치 애널리스트입니다.
-                        아래 제공된 [BGE-M3 RAG 금융 문맥 및 실시간 뉴스 데이터]를 분석하여 {{SYMBOL}} 자산에 대한 기관급 정성적 투자 인텔리전스 리포트를 작성하세요.
+                        아래 제공된 [정량 퀀트 지표 + FastDTW 8000 프랙탈 + 1시간 기준가 + BGE-M3 RAG 외신 데이터]를 종합 분석하여 {{SYMBOL}} 자산에 대한 기관급 투자 인텔리전스 리포트를 작성하세요.
                         
-                        [BGE-M3 RAG 금융 문맥 & 뉴스]
-                        - {{NEWS_CONTEXT}}
+                        {{QUANT_CONTEXT_BLOCK}}
                         
                         [분석 가이드라인]
-                        1. 감성 점수(sentimentScore)는 단순 느낌이 아닌 거시경제(Macro), ETF/기관 자금 수급(Flow), 온체인(On-chain) 지표를 종합하여 -1.0(극단적 약세) ~ +1.0(극단적 강세) 사이로 정밀하게 산출하세요.
+                        1. 감성 점수(sentimentScore)는 단순 느낌이 아닌 FastDTW 패턴 승률, RSI, 1시간봉 기준가 괴리율, 거시 ETF/유동성 팩트를 종합하여 -1.0(극단적 약세) ~ +1.0(극단적 강세) 사이로 정밀하게 산출하세요.
                         2. macroSummary는 월가 기관 리포트 어조(전문적, 객관적, 수치 기반)로 2문장 이내로 작성하세요.
                         3. riskFactors는 다운사이드 리스크 및 주의 지표를 1문장으로 명확히 짚어내세요.
                         
@@ -81,9 +86,9 @@ public class OllamaMarketAgentService {
                         }
                         """
                         .replace("{{SYMBOL}}", symbol != null ? symbol : "BTCUSDT")
-                        .replace("{{NEWS_CONTEXT}}", newsContext != null ? newsContext : "");
+                        .replace("{{QUANT_CONTEXT_BLOCK}}", quantBlock);
 
-                log.info("[OllamaMarketAgentService] Sending Bloomberg Intelligence prompt to Qwen2.5 (BGE-M3 RAG) for {}", symbol);
+                log.info("[OllamaMarketAgentService] Sending Bloomberg Quantitative Intelligence prompt for {}", symbol);
                 String responseText = chatClient.prompt()
                         .user(prompt)
                         .call()
@@ -110,16 +115,22 @@ public class OllamaMarketAgentService {
             }
         }
 
-        return fallbackInsight(symbol, headlines);
+        return fallbackInsight(symbol, headlines, context);
     }
 
-    private QualitativeInsight fallbackInsight(String symbol, List<String> headlines) {
+    private QualitativeInsight fallbackInsight(String symbol, List<String> headlines, com.tem.spring.ai.dto.UnifiedMarketContext context) {
+        String macroSummary = context != null
+                ? String.format("[Bloomberg Desk] FastDTW 프랙탈 일치율(%.1f%%, 승률 %.0f%%) 및 RSI(%.1f) 지표를 바탕으로 견고한 %s 흐름 전개.",
+                context.getSimilarityPct(), context.getHistoricalWinRatePct(), context.getRsi(),
+                context.getStrikeDeltaPct() >= 0 ? "상승 모멘텀" : "지지선 탐색")
+                : "[Bloomberg Desk] 기관 현물 ETF 순유입세 지속 및 글로벌 매크로 유동성 확대로 견고한 상승 모멘텀 유지.";
+
         return QualitativeInsight.builder()
                 .symbol(symbol)
-                .sentiment("BULLISH")
-                .sentimentScore(0.55)
+                .sentiment(context != null && context.getStrikeDeltaPct() >= 0 ? "BULLISH" : "NEUTRAL")
+                .sentimentScore(context != null ? Math.max(-0.9, Math.min(0.9, context.getQuantScore())) : 0.55)
                 .confidence(0.88)
-                .macroSummary("[Bloomberg Desk] 기관 현물 ETF 순유입세 지속 및 글로벌 매크로 유동성 확대로 견고한 상승 모멘텀 유지.")
+                .macroSummary(macroSummary)
                 .keyHeadlines(headlines)
                 .riskFactors("선물 시장 미결제약정 과열에 따른 단기 변동성 및 거시 지표 발표 주시 필요.")
                 .primaryImageUrl(ragService.getPrimaryImageUrl(symbol))

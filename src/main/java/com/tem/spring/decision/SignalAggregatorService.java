@@ -4,6 +4,7 @@ import com.tem.spring.ai.service.ChartPatternVectorService;
 import com.tem.spring.ai.service.DecisionMemoryService;
 import com.tem.spring.ai.service.OllamaMarketAgentService;
 import com.tem.spring.ai.service.PersonaAdvisoryService;
+import com.tem.spring.ai.service.QuantContextPreprocessor;
 import com.tem.spring.core.entity.CandleEntity;
 import com.tem.spring.core.entity.DecisionReportEntity;
 import com.tem.spring.core.model.*;
@@ -35,6 +36,9 @@ public class SignalAggregatorService {
     private final TechnicalIndicatorEngine indicatorEngine;
     private final OllamaMarketAgentService ollamaService;
 
+    private final QuantContextPreprocessor quantContextPreprocessor;
+    private final com.tem.spring.ai.rag.FinancialNewsRagService ragService;
+
     // 4대 AI 벡터 서비스
     private final ChartPatternVectorService chartPatternService;
     private final DecisionMemoryService decisionMemoryService;
@@ -49,7 +53,7 @@ public class SignalAggregatorService {
     private java.util.concurrent.Executor tradingTaskExecutor;
 
     public IntegratedDecisionReport generateDecisionReport(String symbol, TimeFrame timeFrame, int candleLimit) {
-        log.info("[SignalAggregatorService] Generating 4-Engine Integrated Report for: {}", symbol);
+        log.info("[SignalAggregatorService] Generating 4-Engine Integrated Report with Preprocessed Context for: {}", symbol);
 
         // 0. 캔들 데이터 수집
         List<Candle> candles = ingestionService.getHistoricalData(symbol, timeFrame, candleLimit);
@@ -57,26 +61,19 @@ public class SignalAggregatorService {
 
         BarSeries series = barSeriesMapper.toBarSeries(symbol, candles);
 
-        // 1. ta4j 정량 지표 계산
+        // 1. ta4j 정량 지표 및 FastDTW 8000 프랙탈 매칭
         QuantitativeSignal quant = indicatorEngine.calculateSignals(series);
+        PatternInsight pattern = chartPatternService.analyzePatternSimilarity(symbol, candles, quant);
 
-        // 2. Spring AI + ChromaDB 4대 엔진 전용 스레드 풀 기반 병렬 비동기 처리
-        CompletableFuture<QualitativeInsight> qualFuture = tradingTaskExecutor != null ?
-                CompletableFuture.supplyAsync(() -> ollamaService.analyzeMarketSentiment(symbol), tradingTaskExecutor) :
-                CompletableFuture.supplyAsync(() -> ollamaService.analyzeMarketSentiment(symbol));
+        // 2. RAG 금융 뉴스 수집 및 정량/정성 융합 전처리 컨텍스트 빌드
+        List<String> headlines = ragService.retrieveRelevantNews(symbol);
+        com.tem.spring.ai.dto.UnifiedMarketContext marketContext =
+                quantContextPreprocessor.preprocess(symbol, candles, quant, pattern, headlines);
 
-        CompletableFuture<PatternInsight> patternFuture = tradingTaskExecutor != null ?
-                CompletableFuture.supplyAsync(() -> chartPatternService.analyzePatternSimilarity(symbol, candles, quant), tradingTaskExecutor) :
-                CompletableFuture.supplyAsync(() -> chartPatternService.analyzePatternSimilarity(symbol, candles, quant));
-
-        CompletableFuture.allOf(qualFuture, patternFuture).join();
-
-        QualitativeInsight qual = qualFuture.join();
-        PatternInsight pattern = patternFuture.join();
-
-        // 3. 에이전트 장기 기억 복기 및 페르소나 자문 질의
+        // 3. 전처리된 컨텍스트를 주입하여 정성적 AI 리서치 및 페르소나 브리핑 생성
+        QualitativeInsight qual = ollamaService.analyzeMarketSentiment(symbol, marketContext);
         String agentReflection = decisionMemoryService.retrieveRelevantReflection(symbol, quant, qual);
-        PersonaAdvice personaAdvice = personaService.advise(symbol, quant, qual);
+        PersonaAdvice personaAdvice = personaService.advise(symbol, marketContext, quant, qual);
 
         // 4. 최종 신호 융합
         IntegratedDecisionReport report = fuseDecision(symbol, quant, qual, pattern, agentReflection, personaAdvice);
