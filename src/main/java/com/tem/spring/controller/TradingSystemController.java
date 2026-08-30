@@ -294,6 +294,32 @@ public class TradingSystemController {
             @jakarta.validation.Valid @RequestBody com.tem.spring.gamification.dto.ClaimStreakRewardRequest request) {
         return ResponseEntity.ok(streakRewardClaimService.claimStreakReward(request));
     }
+
+    /**
+     * 18. [관리자] 에스크로 풀 예치금 및 활성화 상태 설정 API
+     */
+    @PostMapping("/gamification/admin/escrow-config")
+    public ResponseEntity<com.tem.spring.gamification.dto.EscrowPoolStatusDto> updateEscrowConfig(
+            @jakarta.validation.Valid @RequestBody com.tem.spring.gamification.dto.AdminEscrowConfigRequest request) {
+        return ResponseEntity.ok(streakRewardClaimService.updateEscrowPoolCapacity(request));
+    }
+
+    /**
+     * 19. [관리자] 에스크로 잔액 대표님 지갑으로 전액/일부 긴급 회수 (Sweep) API
+     */
+    @PostMapping("/gamification/admin/escrow-sweep")
+    public ResponseEntity<com.tem.spring.gamification.dto.AdminEscrowSweepResponse> sweepEscrowFunds(
+            @jakarta.validation.Valid @RequestBody com.tem.spring.gamification.dto.AdminEscrowSweepRequest request) {
+        return ResponseEntity.ok(streakRewardClaimService.sweepEscrowFunds(request));
+    }
+
+    /**
+     * 20. [관리자] 에스크로 감사 원장 및 트랜잭션 내역 조회 API
+     */
+    @GetMapping("/gamification/admin/escrow-logs")
+    public ResponseEntity<java.util.List<com.tem.spring.gamification.dto.AdminEscrowAuditLogDto>> getAdminAuditLogs() {
+        return ResponseEntity.ok(streakRewardClaimService.getAdminAuditLogs());
+    }
 }
 
 

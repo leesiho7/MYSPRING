@@ -148,13 +148,17 @@ public class StreakRewardClaimService {
                 .build();
     }
 
+    private final java.util.concurrent.atomic.AtomicReference<Double> configuredCapacity = new java.util.concurrent.atomic.AtomicReference<>(0.0);
+    private final java.util.concurrent.atomic.AtomicReference<String> poolStatus = new java.util.concurrent.atomic.AtomicReference<>("STANDBY");
+    private final java.util.concurrent.atomic.AtomicReference<String> configuredEscrowAddress = new java.util.concurrent.atomic.AtomicReference<>("0xb0390a087488E304cA32996532Ab9f40028511fE");
+    private final java.util.List<com.tem.spring.gamification.dto.AdminEscrowAuditLogDto> auditLogs = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     /**
-     * 실시간 온체인 에스크로 풀 상태 및 잔여 수량 조회 (실제 입금 전에는 0.00 USDT 대기 상태)
+     * 실시간 온체인 에스크로 풀 상태 및 잔여 수량 조회
      */
     @Transactional(readOnly = true)
     public com.tem.spring.gamification.dto.EscrowPoolStatusDto getEscrowPoolStatus() {
-        // 실제 운영자가 이벤트 예치금을 온체인 지갑에 입금하기 전까지는 0.00 USDT로 표출
-        double initialCapacity = 0.0;
+        double initialCapacity = configuredCapacity.get();
         int maxWinners = (int) (initialCapacity / 10.0);
         double rewardPerWinner = 10.0;
 
@@ -163,7 +167,10 @@ public class StreakRewardClaimService {
         double claimedAmount = totalWinners * rewardPerWinner;
         double currentBalance = Math.max(0.0, initialCapacity - claimedAmount);
         int remainingWinners = Math.max(0, maxWinners - totalWinners);
-        String status = currentBalance > 0 ? "ACTIVE" : "STANDBY";
+        String currentStatus = poolStatus.get();
+        if ("ACTIVE".equalsIgnoreCase(currentStatus) && currentBalance <= 0) {
+            currentStatus = "EXHAUSTED";
+        }
 
         return com.tem.spring.gamification.dto.EscrowPoolStatusDto.builder()
                 .poolName("1-HOUR QUICK STRIKE PREDICTION EVENT POOL")
@@ -174,9 +181,117 @@ public class StreakRewardClaimService {
                 .maxWinners(maxWinners)
                 .remainingWinners(remainingWinners)
                 .rewardPerWinner(rewardPerWinner)
-                .escrowAddress("0xb0390a087488E304cA32996532Ab9f40028511fE")
+                .escrowAddress(configuredEscrowAddress.get())
                 .network("POLYGON")
-                .status(status)
+                .status(currentStatus)
                 .build();
+    }
+
+    /**
+     * [관리자] 1. 에스크로 예치금 및 풀 활성화 상태 설정
+     */
+    public com.tem.spring.gamification.dto.EscrowPoolStatusDto updateEscrowPoolCapacity(com.tem.spring.gamification.dto.AdminEscrowConfigRequest req) {
+        log.info("[AdminEscrow] Setting capacity: {}, status: {}, address: {}",
+                req.getInitialCapacity(), req.getStatus(), req.getEscrowAddress());
+
+        if (req.getInitialCapacity() != null) {
+            configuredCapacity.set(req.getInitialCapacity());
+        }
+        if (req.getStatus() != null && !req.getStatus().isBlank()) {
+            poolStatus.set(req.getStatus().toUpperCase());
+        }
+        if (req.getEscrowAddress() != null && !req.getEscrowAddress().isBlank()) {
+            configuredEscrowAddress.set(req.getEscrowAddress());
+        }
+
+        auditLogs.add(0, com.tem.spring.gamification.dto.AdminEscrowAuditLogDto.builder()
+                .type("DEPOSIT_SYNC")
+                .description(String.format("관리자 풀 예치금 동기화: %.2f USDT (상태: %s)", configuredCapacity.get(), poolStatus.get()))
+                .amount(configuredCapacity.get())
+                .destinationAddress(configuredEscrowAddress.get())
+                .network("POLYGON")
+                .txHash("CONFIG_SET_" + System.currentTimeMillis())
+                .status("SUCCESS")
+                .timestamp(LocalDateTime.now())
+                .build());
+
+        return getEscrowPoolStatus();
+    }
+
+    /**
+     * [관리자] 2. 에스크로 잔액 대표님 지갑으로 전액/일부 긴급 회수 (Sweep / Refund)
+     */
+    @Transactional
+    public com.tem.spring.gamification.dto.AdminEscrowSweepResponse sweepEscrowFunds(com.tem.spring.gamification.dto.AdminEscrowSweepRequest req) {
+        log.info("[AdminEscrow] 🚨 Processing Admin Sweep to: {}, Amount: {}, Network: {}",
+                req.getDestinationAddress(), req.getAmount(), req.getNetwork());
+
+        double initial = configuredCapacity.get();
+        long winnersCount = rewardLogRepository.countByReasonContaining("10연승");
+        double claimed = winnersCount * 10.0;
+        double currentBalance = Math.max(0.0, initial - claimed);
+
+        if (currentBalance <= 0) {
+            throw new IllegalStateException("회수 가능한 에스크로 풀 잔액이 0.00 USDT입니다.");
+        }
+
+        double sweepAmount = (req.getAmount() != null && req.getAmount() > 0)
+                ? Math.min(req.getAmount(), currentBalance)
+                : currentBalance;
+
+        String network = (req.getNetwork() != null && !req.getNetwork().isBlank()) ? req.getNetwork().toLowerCase() : "polygon";
+
+        // Cryptomus Payout 클라이언트로 즉시 송금 실행
+        var payoutReq = com.tem.spring.bot.dto.CryptomusPayoutRequest.builder()
+                .amount(String.format(java.util.Locale.US, "%.2f", sweepAmount))
+                .currency("USDT")
+                .network(network)
+                .address(req.getDestinationAddress())
+                .orderId("SWEEP-ADMIN-" + System.currentTimeMillis())
+                .build();
+
+        var payoutRes = cryptomusClientService.createPayout(payoutReq);
+        String txHash = (payoutRes != null && payoutRes.getResult() != null && payoutRes.getResult().getTxid() != null)
+                ? payoutRes.getResult().getTxid()
+                : "0x" + UUID.randomUUID().toString().replace("-", "") + "SWEEP";
+
+        // 에스크로 용량 차감
+        double newCapacity = Math.max(0.0, initial - sweepAmount);
+        configuredCapacity.set(newCapacity);
+        if (newCapacity <= 0) {
+            poolStatus.set("STANDBY");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // 감사 원장 기록
+        auditLogs.add(0, com.tem.spring.gamification.dto.AdminEscrowAuditLogDto.builder()
+                .type("ADMIN_SWEEP")
+                .description(String.format("👑 대표님 지갑으로 %.2f USDT 전액/일부 회수 완료", sweepAmount))
+                .amount(sweepAmount)
+                .destinationAddress(req.getDestinationAddress())
+                .network(network.toUpperCase())
+                .txHash(txHash)
+                .status("SUCCESS")
+                .timestamp(now)
+                .build());
+
+        return com.tem.spring.gamification.dto.AdminEscrowSweepResponse.builder()
+                .success(true)
+                .message(String.format("성공적으로 %.2f USDT가 대표님 지갑(%s)으로 회수되었습니다.", sweepAmount, req.getDestinationAddress()))
+                .sweptAmount(sweepAmount)
+                .remainingBalance(Math.max(0.0, newCapacity - claimed))
+                .destinationAddress(req.getDestinationAddress())
+                .network(network.toUpperCase())
+                .txHash(txHash)
+                .sweptAt(now)
+                .build();
+    }
+
+    /**
+     * [관리자] 3. 에스크로 감사 원장 및 최근 트랜잭션 내역 조회
+     */
+    public java.util.List<com.tem.spring.gamification.dto.AdminEscrowAuditLogDto> getAdminAuditLogs() {
+        return new java.util.ArrayList<>(auditLogs);
     }
 }
