@@ -143,19 +143,37 @@ public class StreakRewardClaimService {
     private final java.util.List<com.tem.spring.gamification.dto.AdminEscrowAuditLogDto> auditLogs = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     /**
-     * 실시간 온체인 에스크로 풀 상태 및 잔여 수량 조회
+     * 실시간 온체인 에스크로 풀 상태 및 잔여 수량 조회 (Web3 Polygon USDT 온체인 잔액 실시간 감지 연동)
      */
     @Transactional(readOnly = true)
     public com.tem.spring.gamification.dto.EscrowPoolStatusDto getEscrowPoolStatus() {
-        double initialCapacity = configuredCapacity.get();
-        int maxWinners = (int) (initialCapacity / 10.0);
-        double rewardPerWinner = 10.0;
+        String address = configuredEscrowAddress.get();
+        double onChainBal = 0.0;
+        try {
+            onChainBal = web3EscrowTransferService.getOnChainUsdtBalance(address, "POLYGON");
+        } catch (Exception e) {
+            log.warn("[EscrowPool] Live on-chain balance query error: {}", e.getMessage());
+        }
 
+        double initialCapacity;
+        double currentBalance;
         long winnersCount = rewardLogRepository.countByReasonContaining("10연승");
         int totalWinners = (int) winnersCount;
+        double rewardPerWinner = 10.0;
         double claimedAmount = totalWinners * rewardPerWinner;
-        double currentBalance = Math.max(0.0, initialCapacity - claimedAmount);
-        int remainingWinners = Math.max(0, maxWinners - totalWinners);
+
+        if (onChainBal > 0.0) {
+            // [경로 B] Polygon 메인넷 온체인 지갑 실제 입금액 실시간 자동 감지
+            currentBalance = onChainBal;
+            initialCapacity = onChainBal + claimedAmount;
+        } else {
+            // 온체인 잔액이 0일 경우 관리자 설정 예치금 사용
+            initialCapacity = configuredCapacity.get();
+            currentBalance = Math.max(0.0, initialCapacity - claimedAmount);
+        }
+
+        int maxWinners = (int) (initialCapacity / 10.0);
+        int remainingWinners = Math.max(0, (int) (currentBalance / 10.0));
         String currentStatus = poolStatus.get();
         if ("ACTIVE".equalsIgnoreCase(currentStatus) && currentBalance <= 0) {
             currentStatus = "EXHAUSTED";
@@ -170,7 +188,7 @@ public class StreakRewardClaimService {
                 .maxWinners(maxWinners)
                 .remainingWinners(remainingWinners)
                 .rewardPerWinner(rewardPerWinner)
-                .escrowAddress(configuredEscrowAddress.get())
+                .escrowAddress(address)
                 .network("POLYGON")
                 .status(currentStatus)
                 .build();
