@@ -46,6 +46,7 @@ public class AuthService {
         }
 
         String hashedPassword = hashPassword(request.getPassword());
+        boolean isSuperAdmin = "leesiho58@gmail.com".equalsIgnoreCase(request.getUsername()) || "leesiho58".equalsIgnoreCase(request.getUsername());
 
         UserEntity user = UserEntity.builder()
                 .username(request.getUsername())
@@ -53,7 +54,7 @@ public class AuthService {
                 .nickname(request.getNickname())
                 .walletAddress(request.getWalletAddress())
                 .reputationScore(100)
-                .role("ROLE_USER")
+                .role(isSuperAdmin ? "ROLE_ADMIN" : "ROLE_USER")
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -75,7 +76,7 @@ public class AuthService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         log.info("[AuthService] Processing login for username: {}", request.getUsername());
 
@@ -95,6 +96,12 @@ public class AuthService {
                     .success(false)
                     .message("아이디 또는 비밀번호가 일치하지 않습니다.")
                     .build();
+        }
+
+        boolean isSuperAdmin = "leesiho58@gmail.com".equalsIgnoreCase(user.getUsername()) || "leesiho58".equalsIgnoreCase(user.getUsername());
+        if (isSuperAdmin && !"ROLE_ADMIN".equals(user.getRole())) {
+            user.setRole("ROLE_ADMIN");
+            userRepository.save(user);
         }
 
         String token = generateToken(user);
@@ -123,8 +130,12 @@ public class AuthService {
                 ? request.getEmail().trim().toLowerCase()
                 : provider + "_" + providerId;
 
-        log.info("[AuthService] Processing Social Login: Provider={}, UserKey={}, Email={}, Nickname={}", 
-                provider, socialUsername, request.getEmail(), request.getNickname());
+        boolean isSuperAdmin = "leesiho58@gmail.com".equalsIgnoreCase(socialUsername) 
+                || (request.getEmail() != null && "leesiho58@gmail.com".equalsIgnoreCase(request.getEmail().trim()))
+                || socialUsername.startsWith("leesiho58");
+
+        log.info("[AuthService] Processing Social Login: Provider={}, UserKey={}, Email={}, Nickname={}, IsAdmin={}", 
+                provider, socialUsername, request.getEmail(), request.getNickname(), isSuperAdmin);
 
         UserEntity user = userRepository.findByUsername(socialUsername)
                 .orElseGet(() -> {
@@ -145,14 +156,19 @@ public class AuthService {
                             .walletAddress(request.getWalletAddress())
                             .tokenBalance(50.0)
                             .reputationScore(100)
-                            .role("ROLE_USER")
+                            .role(isSuperAdmin ? "ROLE_ADMIN" : "ROLE_USER")
                             .createdAt(LocalDateTime.now())
                             .build();
 
-                    log.info("[AuthService] Auto-registering real user from {} OAuth: Email/ID={}, Nickname={}", 
-                            provider, socialUsername, finalNickname);
+                    log.info("[AuthService] Auto-registering real user from {} OAuth: Email/ID={}, Nickname={}, Role={}", 
+                            provider, socialUsername, finalNickname, newUser.getRole());
                     return userRepository.save(newUser);
                 });
+
+        if (isSuperAdmin && !"ROLE_ADMIN".equals(user.getRole())) {
+            user.setRole("ROLE_ADMIN");
+            userRepository.save(user);
+        }
 
         String token = generateToken(user);
 
