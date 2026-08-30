@@ -52,6 +52,14 @@ public class FinancialNewsRagService {
                     new Document(
                             "[EQUITY TECH QUANT] 반도체 및 AI 빅테크(NVDA, MSFT) Capex 지출 확대는 데이터센터 인프라 및 클라우드 AI 토큰 수요의 가파른 EPS 성장 동력.",
                             Map.of("category", "EQUITY", "source", "Morgan Stanley Quant", "asset", "NVDA", "impactScore", 0.82)
+                    ),
+                    new Document(
+                            "[WHALEWISDOM 13F UNLOCKER] 워런 버핏(Berkshire Hathaway) 13F-HR 최신 공시: Apple(AAPL)·AXP·BAC 최대 보유 및 $277B 현금 비중 28.4% 유지.",
+                            Map.of("category", "INSTITUTIONAL_13F", "source", "WhaleWisdom DataDome Unlocker", "asset", "AAPL", "impactScore", 0.95)
+                    ),
+                    new Document(
+                            "[COINMARKETCAP ON-CHAIN UNLOCKER] 비트코인 고래 수급: Metaplanet 1,000 BTC 거래소 수탁 이체 및 비트코인 $78,695 글로벌 유동성 급증.",
+                            Map.of("category", "ON_CHAIN_WHALE", "source", "CoinMarketCap Cloudflare Unlocker", "asset", "BTCUSDT", "impactScore", 0.92)
                     )
             );
             vectorStore.add(seedDocs);

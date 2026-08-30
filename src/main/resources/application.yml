@@ -64,6 +64,7 @@ trading:
 brightdata:
   api-key: ${BRIGHTDATA_API_KEY:4a62ad76-a8e4-46cb-9cb0-deaf9e6587a7}
   base-url: ${BRIGHTDATA_BASE_URL:https://api.brightdata.com}
+  zone: ${BRIGHTDATA_ZONE:web_unlocker1}
   enabled: ${BRIGHTDATA_ENABLED:true}
 
 # RAG & VectorStore Hybrid Search Configuration
