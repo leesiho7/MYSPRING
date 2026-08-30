@@ -31,9 +31,9 @@ spring:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         enabled: true
-        model: ${CHAT_MODEL:qwen2.5:3b}
+        model: ${CHAT_MODEL:qwen2.5:14b}
         options:
-          model: ${CHAT_MODEL:qwen2.5:3b}
+          model: ${CHAT_MODEL:qwen2.5:14b}
           temperature: 0.1
       embedding:
         enabled: true

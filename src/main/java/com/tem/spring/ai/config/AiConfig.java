@@ -28,7 +28,7 @@ public class AiConfig {
     @Value("${spring.ai.ollama.embedding.options.model:bge-m3:latest}")
     private String embeddingModelName;
 
-    @Value("${spring.ai.ollama.chat.options.model:qwen2.5:3b}")
+    @Value("${spring.ai.ollama.chat.options.model:qwen2.5:14b}")
     private String chatModelName;
 
     @Bean

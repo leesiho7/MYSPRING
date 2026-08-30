@@ -44,7 +44,7 @@ public class Web3EscrowTransferService {
 
     // Polygon Mainnet USDT: 0xc2132D05D31c914a87C6611C10748AEb04B58e8F (Decimals: 6)
     private static final String POLYGON_USDT = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
-    private static final String POLYGON_RPC = "https://polygon-rpc.com";
+    private static final String POLYGON_RPC = "https://polygon.llamarpc.com";
 
     // BSC Mainnet USDT: 0x55d398326f99059fF775485246999027B3197955 (Decimals: 18)
     private static final String BSC_USDT = "0x55d398326f99059fF775485246999027B3197955";
