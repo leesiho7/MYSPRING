@@ -64,7 +64,7 @@ public class VisionChartAnalysisService {
 
         // 4. 수치 데이터를 100% 직접 주입한 기관급 마크다운 생성 (Vision 의존도 축소)
         String analysisMarkdown = String.format(Locale.US, """
-                ### 📊 **[거래소 실시간 수치 API 직접 주입 (Ground Truth)]**
+                ### [1. EXCHANGE NUMERICAL GROUND-TRUTH API]
                 - **거래소 실시간 시장가**: **$%s** (Bybit/Binance 오더북 체결가)
                 - **모멘텀 RSI (14)**: **%.1f** (상승 지속 국면)
                 - **이동평균선 (SMA20 / SMA50)**: **$%s / $%s**
@@ -72,7 +72,7 @@ public class VisionChartAnalysisService {
                 
                 ---
                 
-                ### ⚡ **[Python FastDTW 시계열 프랙탈 연산 결과 (Python Worker)]**
+                ### [2. PYTHON FASTDTW TIME-SERIES FRACTAL METRICS]
                 - **역사상 최다 일치 구간**: `%s`
                 - **프랙탈 형상 일치율 (FastDTW)**: **%.1f%%**
                 - **과거 5일 후 승률**: **%.0f%%** (평균 수익률: **%+.1f%%**)
@@ -80,7 +80,7 @@ public class VisionChartAnalysisService {
                 
                 ---
                 
-                ### 👁️ **[AI Vision 차트 시각 판독 & 퀀트 타점 (Vision-Language Fusion)]**
+                ### [3. AI VISION STRUCTURAL RECOGNITION & QUANT TARGETS]
                 - **시각적 구조 분석**: 우측 Y축 가격대($%s) 및 상단 OHLCV 캔들 배열 기준 **상승 채널 돌파(Breakout) 시도** 포착
                 - **핵심 지지선 (Support)**: **$%s** (20일선 및 매물대 지지)
                 - **목표 저항선 (Resistance)**: **$%s** (볼린저 상단 및 직전 고점)
