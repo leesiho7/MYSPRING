@@ -83,10 +83,10 @@ blockchain:
     monthly-price-usdt: 7.0
   deposit:
     addresses:
-      polygon: ${DEPOSIT_WALLET_POLYGON:0x71C8364f3B80430C4361b17b2F3057173b0638A9}
-      bsc: ${DEPOSIT_WALLET_BSC:0x71C8364f3B80430C4361b17b2F3057173b0638A9}
-      trc20: ${DEPOSIT_WALLET_TRC20:TYDzsYUE282QJ84qjxoKqT5wD3ZgK8ZABC}
-      solana: ${DEPOSIT_WALLET_SOLANA:7Xv9BfV4U932pQZ9USDT4444444444444444444444444444}
+      polygon: ${DEPOSIT_WALLET_POLYGON:0xb0390a087488E304cA32996532Ab9f40028511fE}
+      bsc: ${DEPOSIT_WALLET_BSC:0xb0390a087488E304cA32996532Ab9f40028511fE}
+      trc20: ${DEPOSIT_WALLET_TRC20:TLZuz8MAZ34w8i4fejUJ7qaF8PkgF8W4UE}
+      solana: ${DEPOSIT_WALLET_SOLANA:8cEVKX4SzUUADEkkp9X62eWrgXRuU9zZiWBTgQfupqKA}
 
 
 # Official Telegram Bot Configuration (1:1 Personal Deep Linking)
@@ -115,5 +115,12 @@ cryptomus:
   base-url: ${CRYPTOMUS_BASE_URL:https://api.cryptomus.com}
   callback-url: ${CRYPTOMUS_CALLBACK_URL:https://api.aether-trading.com/api/v1/payments/cryptomus/webhook}
   mock-mode: ${CRYPTOMUS_MOCK_MODE:true} # 로컬/테스트 환경에서 Mock 모드 지원
+
+# [방식 2] Web3 자체 서버 핫월렛 온체인 에스크로 설정 (Polygon / BSC ERC-20 직접 전송)
+escrow:
+  wallet:
+    address: ${ESCROW_WALLET_ADDRESS:0xb0390a087488E304cA32996532Ab9f40028511fE}
+    private-key: ${ESCROW_WALLET_PRIVATE_KEY:} # 64자리 16진수 개인키 (미입력 시 안전한 Simulation 모드 동작)
+
 
 

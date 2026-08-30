@@ -33,12 +33,13 @@ public class StreakRewardClaimService {
     private final UserPredictionStatsRepository statsRepository;
     private final UserRepository userRepository;
     private final CryptomusClientService cryptomusClientService;
+    private final Web3EscrowTransferService web3EscrowTransferService;
     private final WithdrawalRepository withdrawalRepository;
     private final TokenRewardLogRepository rewardLogRepository;
     private final TelegramOfficialBotService telegramOfficialBotService;
 
     /**
-     * 10연승 $10 USDT 보상 즉시 Claim 및 온체인 송금 처리
+     * 10연승 $10 USDT 보상 즉시 Claim 및 온체인 송금 처리 (Web3 직접 서명 및 전송)
      */
     @Transactional
     public ClaimStreakRewardResponse claimStreakReward(ClaimStreakRewardRequest req) {
@@ -64,25 +65,13 @@ public class StreakRewardClaimService {
             throw new IllegalStateException("100 USDT 에스크로 풀 보상 예치금이 모두 소진되었습니다. 다음 시즌 이벤트를 기대해 주세요!");
         }
 
-        // 4. Cryptomus Payout API 호출 ($10.00 USDT 온체인 자동 송금)
-        String orderId = "STREAK10-" + user.getId() + "-" + System.currentTimeMillis();
+        // 4. [방식 2] Web3 ERC-20 온체인 스마트 컨트랙트 직접 전송 ($10.00 USDT)
         String network = req.getNetwork() != null ? req.getNetwork().toLowerCase() : "polygon"; // 가스비 절감을 위해 Polygon 기본
+        Web3EscrowTransferService.OnChainTransferResult transferResult = web3EscrowTransferService.sendOnChainTransfer(
+                req.getDestinationAddress().trim(), 10.0, network);
 
-        CryptomusPayoutRequest payoutReq = CryptomusPayoutRequest.builder()
-                .amount("10.00")
-                .currency("USDT")
-                .orderId(orderId)
-                .address(req.getDestinationAddress().trim())
-                .network(network)
-                .isSubtract("0") // 수수료 상점 부담
-                .build();
-
-        CryptomusPayoutResponse payoutRes = cryptomusClientService.createPayout(payoutReq);
-
-        String payoutUuid = payoutRes.getResult() != null ? payoutRes.getResult().getUuid() : UUID.randomUUID().toString();
-        String txHash = payoutRes.getResult() != null && payoutRes.getResult().getTxid() != null ?
-                payoutRes.getResult().getTxid() :
-                "0x" + UUID.randomUUID().toString().replace("-", "") + "CLAIM10";
+        String txHash = transferResult.getTxHash();
+        String payoutUuid = "WEB3-" + UUID.randomUUID().toString().substring(0, 8);
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -90,11 +79,11 @@ public class StreakRewardClaimService {
         WithdrawalEntity withdrawal = WithdrawalEntity.builder()
                 .user(user)
                 .amount(10.0)
-                .destinationType("CRYPTO_PAYOUT_" + network.toUpperCase())
+                .destinationType("WEB3_ERC20_" + network.toUpperCase())
                 .destinationAddress(req.getDestinationAddress())
                 .status("COMPLETED")
                 .proofTxHash(txHash)
-                .cryptographicProof("CRYPTOMUS_PAYOUT_UUID_" + payoutUuid)
+                .cryptographicProof("WEB3_TX_" + txHash)
                 .requestedAt(now)
                 .processedAt(now)
                 .build();
@@ -241,19 +230,10 @@ public class StreakRewardClaimService {
 
         String network = (req.getNetwork() != null && !req.getNetwork().isBlank()) ? req.getNetwork().toLowerCase() : "polygon";
 
-        // Cryptomus Payout 클라이언트로 즉시 송금 실행
-        var payoutReq = com.tem.spring.bot.dto.CryptomusPayoutRequest.builder()
-                .amount(String.format(java.util.Locale.US, "%.2f", sweepAmount))
-                .currency("USDT")
-                .network(network)
-                .address(req.getDestinationAddress())
-                .orderId("SWEEP-ADMIN-" + System.currentTimeMillis())
-                .build();
-
-        var payoutRes = cryptomusClientService.createPayout(payoutReq);
-        String txHash = (payoutRes != null && payoutRes.getResult() != null && payoutRes.getResult().getTxid() != null)
-                ? payoutRes.getResult().getTxid()
-                : "0x" + UUID.randomUUID().toString().replace("-", "") + "SWEEP";
+        // [방식 2] Web3 온체인 스마트 컨트랙트 직접 서명 및 회수 송금 실행
+        Web3EscrowTransferService.OnChainTransferResult transferResult = web3EscrowTransferService.sendOnChainTransfer(
+                req.getDestinationAddress().trim(), sweepAmount, network);
+        String txHash = transferResult.getTxHash();
 
         // 에스크로 용량 차감
         double newCapacity = Math.max(0.0, initial - sweepAmount);
