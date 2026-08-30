@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # ── 1. MySQL 8.0 Database (Volume Mounted for 100% Persistent Data) ──
+  mysql:
+    image: mysql:8.0
+    container_name: aether-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-1234}
+      MYSQL_DATABASE: ${DB_NAME:-trading_db}
+      MYSQL_USER: ${DB_USER:-aether_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-aether_pass_1234}
+      TZ: Asia/Seoul
+    ports:
+      - "${DB_HOST_PORT:-3306}:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./data/mysql_init:/docker-entrypoint-initdb.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-1234}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aether-network
+
+  # ── 2. Spring Boot 3 Backend Server (Java 17 + Python Sandbox) ──
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aether-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME:-trading_db}?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${DB_ROOT_PASSWORD:-1234}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      ESCROW_WALLET_ADDRESS: ${ESCROW_WALLET_ADDRESS:-0xb0390a087488E304cA32996532Ab9f40028511fE}
+      ESCROW_WALLET_PRIVATE_KEY: ${ESCROW_WALLET_PRIVATE_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-AetherQuantOfficialBot}
+      TELEGRAM_MOCK_MODE: ${TELEGRAM_MOCK_MODE:-true}
+      CRYPTOMUS_MOCK_MODE: ${CRYPTOMUS_MOCK_MODE:-true}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      TZ: Asia/Seoul
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/logs:/app/logs
+      - ./data/bot_scripts:/app/bot_scripts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - aether-network
+
+  # ── 3. Next.js 16 Trading & Prediction League Frontend ──
+  frontend:
+    build:
+      context: ./react-vite-ui
+      dockerfile: Dockerfile
+    container_name: aether-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    networks:
+      - aether-network
+
+networks:
+  aether-network:
+    name: aether-trading-network
+    driver: bridge

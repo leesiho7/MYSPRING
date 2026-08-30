@@ -49,21 +49,36 @@ public class CryptoWebhookController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid webhook secret key");
         }
 
-        DepositProcessingResultDto result = depositWebhookService.processDepositWebhook(request);
-        return ResponseEntity.ok(result);
+        try {
+            DepositProcessingResultDto result = depositWebhookService.processDepositWebhook(request);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            log.warn("[CryptoWebhookController] Rejected deposit request: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(DepositProcessingResultDto.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
+        }
     }
 
     /**
-     * 2. [개발/테스트/UI 연동용] 크립토 입금 즉시 시뮬레이션 API
+     * 2. [온체인 수동 제출] 크립토 입금 트랜잭션 검증 및 활성화 API
      */
     @PostMapping("/payments/crypto/simulate-deposit")
     public ResponseEntity<DepositProcessingResultDto> simulateCryptoDeposit(
             @Valid @RequestBody CryptoWebhookDepositRequest request) {
 
-        log.info("[CryptoWebhookController] Simulating crypto deposit for user ID: {}", request.getUserId());
-        request.setProvider("SIMULATION");
-        DepositProcessingResultDto result = depositWebhookService.processDepositWebhook(request);
-        return ResponseEntity.ok(result);
+        log.info("[CryptoWebhookController] Validating crypto deposit for user ID: {}, txHash: {}", request.getUserId(), request.getTxHash());
+        try {
+            DepositProcessingResultDto result = depositWebhookService.processDepositWebhook(request);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            log.warn("[CryptoWebhookController] Invalid on-chain deposit: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(DepositProcessingResultDto.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
+        }
     }
 
     /**
@@ -140,10 +155,10 @@ public class CryptoWebhookController {
                 "amountUsdt", 7.0,
                 "currency", "USDT",
                 "wallets", java.util.Map.of(
-                        "polygon", "0x71C8364f3B80430C4361b17b2F3057173b0638A9",
-                        "bsc", "0x71C8364f3B80430C4361b17b2F3057173b0638A9",
-                        "trc20", "TYDzsYUE282QJ84qjxoKqT5wD3ZgK8ZABC",
-                        "solana", "7Xv9BfV4U932pQZ9USDT4444444444444444444444444444"
+                        "polygon", "0xb0390a087488E304cA32996532Ab9f40028511fE",
+                        "bsc", "0xb0390a087488E304cA32996532Ab9f40028511fE",
+                        "trc20", "TLZuz8MAZ34w8i4fejUJ7qaF8PkgF8W4UE",
+                        "solana", "8cEVKX4SzUUADEkkp9X62eWrgXRuU9zZiWBTgQfupqKA"
                 ),
                 "notice", "입금 전송 시 온체인 트랜잭션이 블록체인에서 승인되는 즉시(1~2분 내) 24시간 봇이 자동 활성화됩니다."
         ));

@@ -34,6 +34,7 @@ public class CryptoDepositWebhookService {
     private final QuantBotProvisioningService provisioningService;
     private final TelegramOfficialBotService telegramOfficialBotService;
     private final BotSubscriptionService subscriptionService;
+    private final OnChainTransactionVerifierService onChainVerifierService;
 
     @Value("${blockchain.webhook.secret:aether_super_secret_webhook_key_2026}")
     private String webhookSecret;
@@ -56,6 +57,26 @@ public class CryptoDepositWebhookService {
     public DepositProcessingResultDto processDepositWebhook(CryptoWebhookDepositRequest req) {
         log.info("[CryptoDepositWebhook] 🚀 Incoming Webhook: TxHash={}, Address={}, Amount={} {}, UserID={}",
                 req.getTxHash(), req.getDepositAddress(), req.getAmount(), req.getCurrency(), req.getUserId());
+
+        if (req.getTxHash() == null || req.getTxHash().trim().isBlank()) {
+            throw new IllegalArgumentException("트랜잭션 해시(TxHash)가 누락되었습니다. 블록체인 전송 후 TxHash를 입력해 주세요.");
+        }
+
+        // 0. 실시간 온체인 트랜잭션 무결성 검증
+        String targetNetwork = req.getNetwork() != null ? req.getNetwork() : "POLYGON";
+        String expectedAddress = req.getDepositAddress() != null ? req.getDepositAddress() : "0xb0390a087488E304cA32996532Ab9f40028511fE";
+
+        OnChainTransactionVerifierService.VerificationResult verification = onChainVerifierService.verifyTransaction(
+                req.getTxHash(),
+                targetNetwork,
+                req.getAmount() > 0 ? req.getAmount() : 7.0,
+                expectedAddress
+        );
+
+        if (!verification.isValid()) {
+            log.warn("[CryptoDepositWebhook] ❌ Tx Verification Rejected for TxHash '{}': {}", req.getTxHash(), verification.getMessage());
+            throw new IllegalArgumentException(verification.getMessage());
+        }
 
         // 1. 멱등성(Idempotency) 검사: 동일 TxHash 중복 처리 방지
         Optional<BotLicenseTokenEntity> existingTokenOpt = licenseTokenRepository.findByPaymentTxHash(req.getTxHash());
