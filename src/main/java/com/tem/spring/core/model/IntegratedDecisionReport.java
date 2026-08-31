@@ -21,5 +21,14 @@ public class IntegratedDecisionReport {
     PatternInsight patternInsight;    // Module 2: ChromaDB 차트 프랙탈/패턴 유사도 분석
     String agentReflection;           // Module 3: ChromaDB 의사결정 장기 기억 & 과거 복기
     PersonaAdvice personaAdvice;      // Module 4: ChromaDB 투자 대가(버핏/시몬스/달리오) 자문
+    
+    // Model Lineage & Dynamic Regime Tracking
+    String marketRegime;              // HIGH_VOLATILITY, CONSOLIDATION, TRENDING, NORMAL
+    String llmModelName;              // e.g. "qwen2.5:14b"
+    String promptVersion;             // e.g. "v2.1"
+    double quantWeight;               // 동적 할당된 정량 가중치
+    double qualWeight;                // 동적 할당된 정성 가중치
+    double patternWeight;             // 동적 할당된 패턴 가중치
+
     LocalDateTime generatedAt;
 }

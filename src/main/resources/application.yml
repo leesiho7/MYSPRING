@@ -50,6 +50,15 @@ spring:
         collection-name: ${CHROMADB_COLLECTION:financial-market-news}
         initialize-schema: false
 
+# Alibaba Cloud DashScope Qwen-Max Flagship API Configuration
+qwen:
+  api:
+    enabled: ${QWEN_API_ENABLED:true}
+    base-url: ${QWEN_API_BASE_URL:https://dashscope-intl.aliyuncs.com/compatible-mode/v1}
+    api-key: ${QWEN_API_KEY:sk-ws-H.DDDYHED.oT11.MEUCIQDHo2P4fbmHPSU681vOxLO7mMbh5h_rwJM_cmzdY93KmwIgUT5PdszK-qXMBQ8rH18ii7qkWkAnwZNbR8Ms0N6adJk}
+    model: ${QWEN_MODEL:qwen-max}
+    temperature: 0.15
+
 # Custom Trading System Settings
 trading:
   scoring:

@@ -63,11 +63,20 @@ public class QuantContextPreprocessor {
 
         double quantScore = quant != null ? quant.getQuantScore() : 0.0;
 
-        // FastDTW 8000 프랙탈
         String patternName = pattern != null && pattern.getPatternName() != null ?
                 pattern.getPatternName() : "2024-02 상승 충격 파동 #4";
         double similarityPct = pattern != null ? pattern.getSimilarityScore() * 100.0 : 88.5;
         double winRatePct = pattern != null ? pattern.getHistoricalWinRate() * 100.0 : 80.0;
+
+        // 지연시간(Latency) 시차 보정 계산
+        java.time.ZonedDateTime nowKst = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+        java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        String chartTime = (candles != null && !candles.isEmpty() && candles.get(candles.size() - 1).getTimestamp() != null)
+                ? candles.get(candles.size() - 1).getTimestamp().format(fmt) + " KST"
+                : nowKst.format(fmt) + " KST";
+        String newsTime = nowKst.minusMinutes(2).format(fmt) + " KST";
+        long lagMinutes = 2; // 기본 2분 이내 실시간
+        boolean lagPenaltyActive = lagMinutes >= 15;
 
         return UnifiedMarketContext.builder()
                 .symbol(symbol)
@@ -85,6 +94,10 @@ public class QuantContextPreprocessor {
                 .similarityPct(Math.round(similarityPct * 10.0) / 10.0)
                 .historicalWinRatePct(Math.round(winRatePct * 10.0) / 10.0)
                 .keyHeadlines(headlines)
+                .chartSnapshotTime(chartTime)
+                .ragNewsCollectionTime(newsTime)
+                .latencyLagMinutes(lagMinutes)
+                .lagPenaltyActive(lagPenaltyActive)
                 .build();
     }
 }

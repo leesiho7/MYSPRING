@@ -1,4 +1,4 @@
-package com.tem.spring.config;
+package com.tem.spring;
 
 import com.tem.spring.core.model.IntegratedDecisionReport;
 import com.tem.spring.core.model.TimeFrame;

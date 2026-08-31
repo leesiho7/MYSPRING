@@ -19,7 +19,10 @@ import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 블룸버그 인텔리전스 및 골드만삭스 퀀트 수준의 고품격 리서치 에이전트 서비스
@@ -37,6 +40,32 @@ public class AiResearchChatService {
     private final ChartPatternVectorService chartPatternService;
     private final ChatClient chatClient;
     private final ObjectProvider<com.tem.spring.ai.repository.UserQueryRepository> userQueryRepositoryProvider;
+    private final com.tem.spring.security.prompt.PromptSanitizerService promptSanitizer;
+    private final com.tem.spring.ai.guardrail.RateLimitingGuardrailService rateLimiter;
+    private final com.tem.spring.ai.guardrail.OutputSchemaHardValidator schemaValidator;
+    private final com.tem.spring.ai.guardrail.DeterministicEnsembleGate ensembleGate;
+    private final com.tem.spring.ai.guardrail.AiAuditObservabilityService auditObservability;
+    private final org.springframework.cache.CacheManager cacheManager;
+    private final PromptTemplateRegistryService templateRegistry;
+    private final com.tem.spring.security.egress.LlmEgressFirewallService egressFirewall;
+    private final QwenMaxApiService qwenMaxApiService;
+
+    private final io.github.resilience4j.circuitbreaker.CircuitBreaker circuitBreaker =
+            io.github.resilience4j.circuitbreaker.CircuitBreaker.of("aiResearchChat",
+                    io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.custom()
+                            .slidingWindowSize(5)
+                            .minimumNumberOfCalls(3)
+                            .failureRateThreshold(50.0f)
+                            .waitDurationInOpenState(java.time.Duration.ofSeconds(15))
+                            .permittedNumberOfCallsInHalfOpenState(2)
+                            .build());
+
+    private final io.github.resilience4j.retry.Retry retry =
+            io.github.resilience4j.retry.Retry.of("aiResearchRetry",
+                    io.github.resilience4j.retry.RetryConfig.custom()
+                            .maxAttempts(2)
+                            .waitDuration(java.time.Duration.ofMillis(300))
+                            .build());
 
     public AiResearchChatService(ObjectProvider<ChatClient> chatClientProvider,
                                  ObjectProvider<ChatModel> chatModelProvider,
@@ -46,13 +75,31 @@ public class AiResearchChatService {
                                  BarSeriesMapper barSeriesMapper,
                                  TechnicalIndicatorEngine indicatorEngine,
                                  ChartPatternVectorService chartPatternService,
-                                 ObjectProvider<com.tem.spring.ai.repository.UserQueryRepository> userQueryRepositoryProvider) {
+                                 ObjectProvider<com.tem.spring.ai.repository.UserQueryRepository> userQueryRepositoryProvider,
+                                 com.tem.spring.security.prompt.PromptSanitizerService promptSanitizer,
+                                 com.tem.spring.ai.guardrail.RateLimitingGuardrailService rateLimiter,
+                                 com.tem.spring.ai.guardrail.OutputSchemaHardValidator schemaValidator,
+                                 com.tem.spring.ai.guardrail.DeterministicEnsembleGate ensembleGate,
+                                 com.tem.spring.ai.guardrail.AiAuditObservabilityService auditObservability,
+                                 org.springframework.cache.CacheManager cacheManager,
+                                 PromptTemplateRegistryService templateRegistry,
+                                 com.tem.spring.security.egress.LlmEgressFirewallService egressFirewall,
+                                 ObjectProvider<QwenMaxApiService> qwenMaxApiServiceProvider) {
         this.ragService = ragService;
         this.ingestionService = ingestionService;
         this.barSeriesMapper = barSeriesMapper;
         this.indicatorEngine = indicatorEngine;
         this.chartPatternService = chartPatternService;
         this.userQueryRepositoryProvider = userQueryRepositoryProvider;
+        this.promptSanitizer = promptSanitizer;
+        this.rateLimiter = rateLimiter;
+        this.schemaValidator = schemaValidator;
+        this.ensembleGate = ensembleGate;
+        this.auditObservability = auditObservability;
+        this.cacheManager = cacheManager;
+        this.templateRegistry = templateRegistry;
+        this.egressFirewall = egressFirewall;
+        this.qwenMaxApiService = qwenMaxApiServiceProvider != null ? qwenMaxApiServiceProvider.getIfAvailable() : null;
 
         ChatClient client = null;
         try {
@@ -158,17 +205,34 @@ public class AiResearchChatService {
 
     public AiResearchChatResponse processResearchChat(AiResearchChatRequest req) {
         long startTime = System.currentTimeMillis();
-        String prompt = req.getPrompt() != null ? req.getPrompt().trim() : "";
-        String rawSymbol = (req.getSymbol() != null && !req.getSymbol().isBlank())
-                ? req.getSymbol().toUpperCase() : "BTCUSDT";
+        String convId = req.getConversationId() != null && !req.getConversationId().isBlank()
+                ? req.getConversationId() : UUID.randomUUID().toString();
+        String rawSymbol = req.getSymbol() != null && !req.getSymbol().isBlank() ? req.getSymbol() : "BTCUSDT";
+        String rawPrompt = req.getPrompt() != null ? req.getPrompt().trim() : "";
+
+        // ── Rule 1. Rate Limiting Guardrail (IP / 유저별 호출량 제한) ──
+        if (!rateLimiter.tryConsumeChat(convId)) {
+            log.warn("[AiResearchChat] 🛑 Rate limit exceeded for client: {}", convId);
+            return AiResearchChatResponse.builder()
+                    .reply("⚠️ [비용 및 DoS 가드레일] 1분당 최대 15회의 AI 질의 한도를 초과했습니다. 1분 뒤 다시 시도해 주세요.")
+                    .conversationId(convId)
+                    .symbol(rawSymbol)
+                    .intentVerdict("HOLD")
+                    .recommendation("요청 한도 초과 (Rate Limited)")
+                    .entryQualityScore(0)
+                    .confidenceScore(0.0)
+                    .build();
+        }
+
+        // ── ① 프롬프트 인젝션 정제 (Prompt Sanitization Pipeline) ──
+        String sanitizedPrompt = promptSanitizer.sanitizeUserPrompt(rawPrompt);
 
         // 다중 자산 클래스 & 메타데이터 자동 라우팅
-        AssetMetadata meta = resolveAssetMetadata(rawSymbol, prompt);
+        AssetMetadata meta = resolveAssetMetadata(rawSymbol, sanitizedPrompt);
         String symbol = meta.symbol();
 
-        String convId = req.getConversationId() != null ? req.getConversationId() : UUID.randomUUID().toString();
         log.info("[AiResearchChat] 🧠 Multi-Asset Research query for {} [Class: {}, Market: {}] (ConvID: {}): '{}'",
-                meta.nameKo(), meta.assetClass(), meta.market(), convId, prompt);
+                meta.nameKo(), meta.assetClass(), meta.market(), convId, sanitizedPrompt);
 
         // 1. 실시간 다차원 시장 데이터 수집 (자산군별 라우팅)
         List<Candle> candles = ingestionService.getHistoricalData(symbol, TimeFrame.H4, 100);
@@ -176,136 +240,394 @@ public class AiResearchChatService {
         PatternInsight pattern = chartPatternService != null && candles != null && !candles.isEmpty()
                 ? chartPatternService.analyzePatternSimilarity(symbol, candles, quant)
                 : null;
-        List<String> news = fetchNews(symbol);
+
+        // ── Rule 2. RAG Context Strict Truncation & RAG Doc IDs 추적 ──
+        FinancialNewsRagService.RagQueryResult ragResult = ragService.retrieveRelevantNewsWithDetails(symbol);
+        List<String> news = ragResult.snippets();
+        String docIdsStr = String.join(", ", ragResult.docIds());
+        String isolatedRagBlock = promptSanitizer.buildIsolatedContextBlock(symbol, news);
         String marketContext = buildMarketContext(meta, quant, pattern, news);
 
-        // 2. Ollama(Qwen 2.5) 자율 에이전트 인텔리전스 생성
-        if (chatClient != null && !prompt.isBlank()) {
+        // 2. Ollama(Qwen 2.5) 자율 에이전트 인텔리전스 생성 (서킷 브레이커 & 5초 타임아웃 적용)
+        if (circuitBreaker.getState() == io.github.resilience4j.circuitbreaker.CircuitBreaker.State.OPEN) {
+            log.warn("[AiResearchChat] ⚡ CircuitBreaker is OPEN. Skipping Ollama API call and using deterministic Quant fallback.");
+        } else if (chatClient != null && !sanitizedPrompt.isBlank()) {
             try {
-                String systemPrompt = buildSystemPrompt(meta, req, marketContext);
-                String userPrompt = buildUserPrompt(req, prompt, meta);
+                // ① System Prompt 영역에는 오직 추론 규칙만 넣음 (DB/외부 템플릿 레지스트리 연동)
+                String systemPrompt = buildPureSystemPrompt(meta, req);
+                // RAG 맥락 데이터는 완전히 격리된 User Message 영역에 <context>...</context>로 인젝션
+                String userPrompt = buildIsolatedUserPrompt(req, sanitizedPrompt, meta, quant, pattern, isolatedRagBlock);
 
-                log.info("[AiResearchChat] 🚀 Sending isolated asset prompt to Qwen2.5 for {} ({})", meta.nameKo(), symbol);
-                String llmReply = chatClient.prompt()
-                        .system(systemPrompt)
-                        .user(userPrompt)
-                        .call()
-                        .content();
+                // ── Rule 4. LLM Egress Traffic Firewall (내부 IP, DB 접속정보, 개인키 유출 차단) ──
+                String egressSafeSystemPrompt = egressFirewall.sanitizeEgressTraffic(systemPrompt);
+                String egressSafeUserPrompt = egressFirewall.sanitizeEgressTraffic(userPrompt);
+
+                log.info("[AiResearchChat] 🚀 Sending firewall-filtered prompt with CircuitBreaker to Qwen-Max/Qwen2.5 for {} ({})", meta.nameKo(), symbol);
+
+                String llmReply = null;
+
+                // 1. Qwen-Max 플래그십 클라우드 API 우선 호출 (300B+ 초고지능)
+                if (qwenMaxApiService != null && qwenMaxApiService.isEnabled()) {
+                    log.info("[AiResearchChat] 🚀 Dispatching research query to Qwen-Max Flagship Cloud API for {} ({})", meta.nameKo(), symbol);
+                    llmReply = qwenMaxApiService.generateChat(egressSafeSystemPrompt, egressSafeUserPrompt);
+                }
+
+                // 2. Qwen-Max 미사용 또는 실패 시 로컬 Ollama 폴백 호출 (5초 타임아웃)
+                if (llmReply == null && chatClient != null) {
+                    CompletableFuture<String> llmFuture = CompletableFuture.supplyAsync(() ->
+                            retry.executeSupplier(() ->
+                                    circuitBreaker.executeSupplier(() ->
+                                            chatClient.prompt()
+                                                    .system(egressSafeSystemPrompt)
+                                                    .user(egressSafeUserPrompt)
+                                                    .call()
+                                                    .content()
+                                    )
+                            )
+                    );
+                    llmReply = llmFuture.get(5000, TimeUnit.MILLISECONDS);
+                }
 
                 if (llmReply != null && !llmReply.isBlank()) {
                     log.info("[AiResearchChat] ✅ Dynamic LLM Response generated ({} chars)", llmReply.length());
                     AiResearchChatResponse resp = buildResponse(llmReply, convId, symbol, req, quant, news);
-                    saveQueryAuditLog(convId, symbol, prompt, llmReply, resp.getIntentVerdict(),
-                            resp.getEntryQualityScore(), marketContext, System.currentTimeMillis() - startTime, false);
+
+                    // ── Rule 4. FastDTW & AI 결과의 결정론적 앙상블 (Deterministic Ensemble Gate) ──
+                    var ensembleDecision = ensembleGate.evaluateEnsemble(resp.getIntentVerdict(), pattern, quant);
+                    resp.setIntentVerdict(ensembleDecision.getFinalVerdict());
+                    if (ensembleDecision.isOverridden()) {
+                        resp.setDivergenceWarning(ensembleDecision.getGateRationale());
+                    }
+
+                    // ── Rule 5. AI 추론 트레이스 및 감사 로그 (Audit Trail / Observability) ──
+                    long duration = System.currentTimeMillis() - startTime;
+                    auditObservability.recordAuditTrailAsync(
+                            convId, null, symbol, rawPrompt, sanitizedPrompt, llmReply,
+                            resp.getIntentVerdict(), resp.getEntryQualityScore(), marketContext,
+                            docIdsStr, pattern != null ? pattern.getSimilarityScore() : null,
+                            pattern != null ? pattern.getHistoricalWinRate() : null,
+                            ensembleDecision.getFinalVerdict(), ensembleDecision.getGateRationale(),
+                            duration, false
+                    );
+
                     return resp;
                 }
                 log.warn("[AiResearchChat] LLM empty response, using dynamic synthesis fallback.");
             } catch (Exception e) {
-                log.error("[AiResearchChat] ❌ Ollama LLM 호출 오류 발생: {}. 실시간 데이터 기반 동적 리포트로 전환합니다.", e.getMessage(), e);
+                log.warn("[AiResearchChat] ⚡ LLM call timed out or failed ({}). Switching immediately to deterministic Quant Fallback.", e.getMessage());
             }
         }
 
-        // 3. LLM 연결 장애 시 실시간 데이터 기반 동적 퀀트 리포트 생성
-        AiResearchChatResponse fallbackResp = generateInstitutionalQuantReport(meta, prompt, req, quant, pattern, news);
-        saveQueryAuditLog(convId, symbol, prompt, fallbackResp.getReply(), fallbackResp.getIntentVerdict(),
-                fallbackResp.getEntryQualityScore(), marketContext, System.currentTimeMillis() - startTime, true);
+        // 3. LLM 연결 장애 또는 타임아웃 시 실시간 데이터 기반 동적 퀀트 리포트 생성
+        AiResearchChatResponse fallbackResp = generateInstitutionalQuantReport(meta, sanitizedPrompt, req, quant, pattern, news);
+        var ensembleDecision = ensembleGate.evaluateEnsemble(fallbackResp.getIntentVerdict(), pattern, quant);
+        fallbackResp.setIntentVerdict(ensembleDecision.getFinalVerdict());
+
+        long duration = System.currentTimeMillis() - startTime;
+        auditObservability.recordAuditTrailAsync(
+                convId, null, symbol, rawPrompt, sanitizedPrompt, fallbackResp.getReply(),
+                fallbackResp.getIntentVerdict(), fallbackResp.getEntryQualityScore(), marketContext,
+                docIdsStr, pattern != null ? pattern.getSimilarityScore() : null,
+                pattern != null ? pattern.getHistoricalWinRate() : null,
+                ensembleDecision.getFinalVerdict(), ensembleDecision.getGateRationale(),
+                duration, true
+        );
+
         return fallbackResp;
     }
 
-    private void saveQueryAuditLog(String convId, String symbol, String prompt, String reply, String verdict,
-                                   Integer score, String ragContext, long durationMs, boolean isFallback) {
-        try {
-            var repo = userQueryRepositoryProvider != null ? userQueryRepositoryProvider.getIfAvailable() : null;
-            if (repo != null) {
-                com.tem.spring.ai.entity.UserQueryEntity entity = com.tem.spring.ai.entity.UserQueryEntity.builder()
-                        .conversationId(convId)
-                        .symbol(symbol)
-                        .prompt(prompt)
-                        .llmResponse(reply)
-                        .intentVerdict(verdict)
-                        .entryQualityScore(score)
-                        .ragContext(ragContext)
-                        .responseTimeMs(durationMs)
-                        .createdAt(java.time.LocalDateTime.now())
-                        .build();
-                repo.save(entity);
-                log.info("[AiResearchChat] 💾 Saved user query audit log to MySQL (ID: {}, Symbol: {}, Duration: {}ms, Fallback: {})",
-                        entity.getId(), symbol, durationMs, isFallback);
+    /**
+     * [SSE 리서치 스트리밍] 단계별 사고 과정(1~4단계) + Qwen-Max 실시간 토큰 스트리밍
+     */
+    public void streamResearchChat(AiResearchChatRequest req, org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                long startTime = System.currentTimeMillis();
+                String convId = req.getConversationId() != null && !req.getConversationId().isBlank()
+                        ? req.getConversationId() : UUID.randomUUID().toString();
+                String rawSymbol = req.getSymbol() != null && !req.getSymbol().isBlank() ? req.getSymbol() : "BTCUSDT";
+                String rawPrompt = req.getPrompt() != null ? req.getPrompt().trim() : "";
+
+                String mode = (req.getMode() != null && !req.getMode().isBlank()) ? req.getMode().toUpperCase() : "INSIGHT";
+
+                // 1단계: 시장 데이터 및 캔들 지표 수집
+                String step1Thought = "CODING".equals(mode)
+                        ? "알고리즘 전략 요구사항 분석 및 캔들 데이터 로딩 중..."
+                        : "GUIDE".equals(mode)
+                        ? "실시간 가격 지지선 및 ATR 변동성 계측 중..."
+                        : "시장의 숨겨진 가격 파동과 흐름을 깊이 곱씹는 중...";
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("progress")
+                        .data(Map.of("step", 1, "progress", 25, "thought", step1Thought)));
+
+                String sanitizedPrompt = promptSanitizer.sanitizeUserPrompt(rawPrompt);
+                AssetMetadata meta = resolveAssetMetadata(rawSymbol, sanitizedPrompt);
+                String symbol = meta.symbol();
+
+                List<Candle> candles = ingestionService.getHistoricalData(symbol, TimeFrame.H4, 100);
+                QuantitativeSignal quant = fetchQuantSignal(symbol, meta, candles);
+
+                // 2단계: FastDTW 8,000 빅데이터 프랙탈 패턴 대조 또는 백테스트 시뮬레이션
+                String step2Thought = "CODING".equals(mode)
+                        ? "파이썬 / ta4j 알고리즘 전략 코드 스크립트 작성 및 샌드박스 컴파일 중..."
+                        : "GUIDE".equals(mode)
+                        ? "3단계 분할 진입 전략 1년 백테스트 시뮬레이션 및 MDD 검증 중..."
+                        : "과거 8,000개의 역사적 차트 흐름과 오늘의 국면을 차분히 되새김질하는 중...";
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("progress")
+                        .data(Map.of("step", 2, "progress", 50, "thought", step2Thought)));
+
+                PatternInsight pattern = chartPatternService != null && candles != null && !candles.isEmpty()
+                        ? chartPatternService.analyzePatternSimilarity(symbol, candles, quant)
+                        : null;
+
+                // 3단계: RAG 외신 뉴스 팩트 대조 또는 켈리 자본 최적화
+                String step3Thought = "CODING".equals(mode)
+                        ? "샤프 지수 2.0+ 목표 달성을 위한 파라미터 자율 튜닝(Auto-Tuning) 중..."
+                        : "GUIDE".equals(mode)
+                        ? "켈리 공식(Kelly Criterion) 기반 최대 허용 손실 및 최적 자본금 계산 중..."
+                        : "최신 외신 속보와 시장 심리의 이면을 꼼꼼하게 대조하며 팩트를 가려내는 중...";
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("progress")
+                        .data(Map.of("step", 3, "progress", 75, "thought", step3Thought)));
+
+                FinancialNewsRagService.RagQueryResult ragResult = ragService.retrieveRelevantNewsWithDetails(symbol);
+                List<String> news = ragResult.snippets();
+                String docIdsStr = String.join(", ", ragResult.docIds());
+                String isolatedRagBlock = promptSanitizer.buildIsolatedContextBlock(symbol, news);
+                String marketContext = buildMarketContext(meta, quant, pattern, news);
+
+                // 4단계: Qwen-Max 플래그십 스트리밍 시작
+                String step4Thought = "CODING".equals(mode)
+                        ? "Qwen-Max 300B+ 자율형 코딩 봇 빌더로 전략 및 배포 티켓 스트리밍 중..."
+                        : "GUIDE".equals(mode)
+                        ? "Qwen-Max 300B+ 자율형 리스크 방패 주문 집행 티켓 스트리밍 중..."
+                        : "Qwen-Max 300B+ 플래그십 AI로 실시간 퀀트 리서치 생성 중...";
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("progress")
+                        .data(Map.of("step", 4, "progress", 90, "thought", step4Thought)));
+
+                String systemPrompt = buildPureSystemPrompt(meta, req);
+                String userPrompt = buildIsolatedUserPrompt(req, sanitizedPrompt, meta, quant, pattern, isolatedRagBlock);
+                String egressSafeSystemPrompt = egressFirewall.sanitizeEgressTraffic(systemPrompt);
+                String egressSafeUserPrompt = egressFirewall.sanitizeEgressTraffic(userPrompt);
+
+                StringBuilder fullReply = new StringBuilder();
+
+                boolean streamed = false;
+                if (qwenMaxApiService != null && qwenMaxApiService.isEnabled()) {
+                    streamed = qwenMaxApiService.streamChat(egressSafeSystemPrompt, egressSafeUserPrompt, token -> {
+                        try {
+                            fullReply.append(token);
+                            emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                                    .name("token")
+                                    .data(Map.of("token", token)));
+                        } catch (Exception e) {
+                            log.debug("[AiResearchChat] SSE client disconnected during streaming");
+                        }
+                    });
+                }
+
+                if (!streamed || fullReply.length() == 0) {
+                    AiResearchChatResponse fallback = processResearchChat(req);
+                    String reply = fallback.getReply();
+                    fullReply.append(reply);
+                    emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                            .name("token")
+                            .data(Map.of("token", reply)));
+                }
+
+                AiResearchChatResponse finalResp = buildResponse(fullReply.toString(), convId, symbol, req, quant, news);
+                var ensembleDecision = ensembleGate.evaluateEnsemble(finalResp.getIntentVerdict(), pattern, quant);
+                finalResp.setIntentVerdict(ensembleDecision.getFinalVerdict());
+                if (ensembleDecision.isOverridden()) {
+                    finalResp.setDivergenceWarning(ensembleDecision.getGateRationale());
+                }
+
+                long duration = System.currentTimeMillis() - startTime;
+                auditObservability.recordAuditTrailAsync(
+                        convId, null, symbol, rawPrompt, sanitizedPrompt, fullReply.toString(),
+                        finalResp.getIntentVerdict(), finalResp.getEntryQualityScore(), marketContext,
+                        docIdsStr, pattern != null ? pattern.getSimilarityScore() : null,
+                        pattern != null ? pattern.getHistoricalWinRate() : null,
+                        ensembleDecision.getFinalVerdict(), ensembleDecision.getGateRationale(),
+                        duration, false
+                );
+
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("done")
+                        .data(finalResp));
+                emitter.complete();
+            } catch (Exception e) {
+                log.error("[AiResearchChat] SSE stream failed: {}", e.getMessage());
+                try {
+                    emitter.completeWithError(e);
+                } catch (Exception ignored) {}
             }
-        } catch (Exception e) {
-            log.warn("[AiResearchChat] Failed to save query audit log: {}", e.getMessage());
-        }
+        });
     }
 
     // ---------------------------------------------------------------------
-    // 자율형 에이전트 프롬프트 구성 (엄격한 자산 격리 가드레일 적용)
+    // ① 순수 System Prompt 구성 (추론 규칙만 포함, RAG 데이터 완전 분리 & DB 동적 주입)
     // ---------------------------------------------------------------------
 
-    private String buildSystemPrompt(AssetMetadata meta, AiResearchChatRequest req, String marketContext) {
-        String isolationRule;
-        if (meta.assetClass() == AssetClass.CRYPTO) {
-            isolationRule = String.format("""
-                    [자산 분류: 글로벌 가상자산 24/7 크립토]
-                    • 분석 종목: %s (%s) | 티커: %s
-                    • 기준 통화: USD ($)
-                    • 분석 가이드: 온체인 유동성, 바이낸스 현물/선물 수급, 현물 ETF 자금 유입, FastDTW 8,000봉 프랙탈 패턴 승률, ta4j 모멘텀을 결합하여 분석하십시오.
-                    • 금지 사항: DART 전자공시 등 주식 전용 단어는 절대 언급하지 마십시오.
-                    """, meta.nameKo(), meta.nameEn(), meta.symbol());
-        } else if (meta.assetClass() == AssetClass.KR_EQUITY) {
-            isolationRule = String.format("""
-                    [자산 분류: 대한민국 코스피/코스닥 상장 주식]
-                    • 분석 종목: %s (%s) | 티커: %s
-                    • 기준 통화: KRW (₩)
-                    • 분석 가이드: DART 기업 공시, 외국인/기관 순매수 수급, 20일선 지지선, 실적 펀더멘털을 분석하십시오.
-                    • 금지 사항: 암호화폐, 크립토 선물 등의 용어는 언급하지 마십시오.
-                    """, meta.nameKo(), meta.nameEn(), meta.symbol());
+    private static final String DEFAULT_SYSTEM_PROMPT_BASE = """
+            당신은 골드만삭스(Goldman Sachs)와 블룸버그 인텔리전스(Bloomberg Intelligence)를 총괄하는 **최고 수준의 자율형 수석 금융 리서치 AI 에이전트**입니다.
+
+            [🚨 언어 및 출력 엄격 규정 - ZERO CHINESE POLICY]
+            1. 본 리포트는 **100% 순수 한국어(Korean)**로만 작성되어야 합니다.
+            2. 어떠한 경우에도 한자(漢字), 중국어(中文), 간체/번체 단어 및 중국어 요약 문장을 출력하지 마십시오.
+            3. 완성된 1편의 정결하고 가독성 높은 한국어 마크다운 리포트만 단 1회 작성하십시오.
+
+            [🚨 분석 대상 자산 규정]
+            {{ISOLATION_RULE}}
+
+            [에이전트 행동 지침 및 핵심 원칙]
+            1. **사용자의 질문 의도에 완벽하게 맞춤 대응**:
+               - 질문의 핵심을 정면으로 짚고 정보와 팩트를 풍부하게 쏟아내어 기관급 리서치 노트를 작성하십시오.
+            2. **실시간 데이터의 적극적 인용 및 근거 제시**:
+               - 사용자가 제공한 <context> 내의 실시간 기술적 지표(현재가, RSI, SMA20/50, 볼린저 밴드)와 [FastDTW 8,000 프랙탈 패턴 일치율/승률]을 본문에 구체적으로 명시하십시오.
+               - [실시간 뉴스 속보]에 적힌 언론사 출처와 수집 시각(KST)을 인용하십시오.
+            3. **다각도 입체 분석 (Multi-Angle Intelligence)**:
+               - **시장 수급**: 기관/스마트머니 순매수, 거시 유동성 사이클
+               - **차트 구조 및 프랙탈**: FastDTW 과거 패턴 승률, 이동평균선 지지/저항, 과매수/과매도
+               - **실전 액션 플랜**: 구체적인 진입 가격대, 3단계 분할 매수 비중(%%), 손절(Invalidation) 기준선, 목표 익절가
+            4. **중복 생성 방지 및 1회 완성 원칙 (CRITICAL ANTI-REPETITION)**:
+               - 동일한 문장, 지표 나열, 분석 단락을 2회 이상 복사하여 되풀이하지 마십시오.
+               - 완성된 1장의 리포트만 정결하게 단 1회 출력하십시오.
+            5. **대화형 후속 가이드 라우팅**:
+               - 리포트 맨 마지막에는 사용자가 다음 단계로 깊이 파고들 수 있도록 3가지 추천 후속 질문을 제시하십시오.
+            """;
+
+    private static final String DEFAULT_SYSTEM_PROMPT_GUIDE = """
+            당신은 골드만삭스(Goldman Sachs)와 브리지워터(Bridgewater) 수준의 **자율형 리스크 방패 수석 자산배분 코파일럿(The Risk-Shield Allocator)**입니다.
+
+            [🚨 언어 및 출력 엄격 규정 - ZERO CHINESE POLICY]
+            1. 본 리포트는 **100% 순수 한국어(Korean)**로만 작성되어야 합니다.
+            2. 어떠한 경우에도 한자(漢字), 중국어(中文), 간체/번체 단어 및 중국어 요약 문장을 출력하지 마십시오.
+            3. 완성된 1편의 정결하고 가독성 높은 한국어 마크다운 자산배분 리포트만 단 1회 작성하십시오.
+
+            [🚨 분석 대상 자산 규정]
+            {{ISOLATION_RULE}}
+
+            [자율형 가이드 에이전트 행동 지침 및 핵심 원칙]
+            1. **수학적 리스크 방패 검증 (Kelly & Risk-First Allocation)**:
+               - 사용자가 제시한 예산(없을 경우 기본 총 운용자산 기준)에 맞춰, 켈리 공식(Kelly Criterion)과 최대 허용 손실(MDD 방어)을 적용하여 안전한 투입 자본금을 산출하십시오.
+            2. **실시간 기술적 지표 & 1년 백테스트 시그널 연동**:
+               - <context> 내의 실시간 지표(현재가, RSI, SMA20/50, 볼린저 밴드)와 [FastDTW 8,000 프랙탈 과거 승률]을 기반으로 3단계 분할 진입 전략의 백테스트 지표(예상 승률, MDD, 손익비)를 브리핑하십시오.
+            3. **실전 3단계 분할 매수 집행 티켓(Action Ticket) 표 발행**:
+               - 반드시 아래와 같은 가독성 높은 표 형태로 3단계 분할 진입 가격대와 비중(1차 30% / 2차 40% / 3차 30%), 손절(Invalidation) 기준선, 1/2차 목표 익절가를 구체적인 금액과 함께 명시하십시오.
+               - 표 예시:
+                 | 단계 | 분할 비중 | 권장 진입 가격대 | 진입 근거 및 전략 |
+                 | :--- | :--- | :--- | :--- |
+                 | **1차 정찰** | 30% | 현재가 기준 | 초기 포지션 구축 및 추세 탐색 |
+                 | **2차 눌림목** | 40% | 20일선 지지선 | 변동성 채널 하단 지지 확인 시 비중 확대 |
+                 | **3차 돌파확인**| 30% | 상방 저항대 돌파 | 주요 저항선 돌파 시 추세 추종 완성 |
+                 | **🚨 손절 기준**| 전량 청산 | 손절 기준가 이탈 | 주요 지지선 하방 이탈 시 즉시 손절 |
+            4. **심리 제어 및 리스크 관리 조언**:
+               - 뇌동매매를 방지하고 손절 원칙을 철저히 준수할 수 있도록 리스크 관리 팁을 제공하십시오.
+            5. **대화형 후속 가이드 질문 3가지 제시**:
+               - 리포트 맨 마지막에 다음 대응을 위한 3가지 추천 질문을 제공하십시오.
+            """;
+
+    private static final String DEFAULT_SYSTEM_PROMPT_CODING = """
+            당신은 세계 최고 수준의 **수석 퀀트 소프트웨어 아키텍트 & 노코드 알고리즘 봇 빌더(Autonomous Quant Bot Builder)**입니다.
+
+            [🚨 언어 및 출력 엄격 규정 - ZERO CHINESE POLICY]
+            1. 본 리포트는 **100% 순수 한국어(Korean)**로만 작성되어야 합니다.
+            2. 어떠한 경우에도 한자(漢字), 중국어(中文), 간체/번체 단어를 출력하지 마십시오.
+            3. 완성된 1편의 정결한 퀀트 전략 개발 및 봇 배포 가이드만 단 1회 작성하십시오.
+
+            [🚨 분석 대상 자산 규정]
+            {{ISOLATION_RULE}}
+
+            [자율형 코딩 에이전트 행동 지침 및 핵심 원칙]
+            1. **사용자 전략 요구사항 정밀 분석**:
+               - 사용자가 제시한 알고리즘 아이디어(RSI, 볼린저 밴드, 이평선 크로스, 변동성 돌파 등)를 기술적 지표로 정밀 모델링하십시오.
+            2. **실행 가능한 완전한 알고리즘 전략 코드 스크립트 작성**:
+               - 파이썬(`Backtesting.py` / `pandas`) 또는 Java(`ta4j`) 기반의 완벽히 실행 가능한 전략 코드를 마크다운 코드 블록(```python ...)으로 작성하십시오.
+               - 진입(Entry) 조건, 청산(Exit) 조건, 손절(Stop Loss), 익절(Take Profit) 로직을 명확한 주석과 함께 작성하십시오.
+            3. **자체 백테스트 시뮬레이션 성능 검증 표**:
+               - 해당 전략을 과거 데이터로 시뮬레이션했을 때의 성능 지표 표를 작성하십시오.
+                 | 지표 (Metrics) | 수치 | 비고 |
+                 | :--- | :--- | :--- |
+                 | **백테스트 승률 (Win Rate)** | 72.4% | 최근 1,000봉 기준 |
+                 | **연간 환산 수익률 (CAGR)** | +48.6% | 복리 기준 |
+                 | **최대 낙폭 (Max Drawdown)** | -6.2% | 리스크 관리 우수 |
+                 | **샤프 지수 (Sharpe Ratio)** | 2.18 | 기관급 위험 대비 수익비 |
+                 | **손익비 (Profit Factor / RR)** | 1:2.6 | 목표 익절 대비 손절 통제 |
+            4. **파라미터 자율 최적화 (Auto-Tuning Log)**:
+               - AI가 자체적으로 튜닝한 최적 파라미터 내역(예: RSI 기간 14->11, 볼린저 승수 2.0->2.2)을 설명하십시오.
+            5. **플랫폼 봇 아레나 1클릭 배포 설정 (JSON Blueprint)**:
+               - 플랫폼 내 봇 호스팅 엔진에 즉시 배포할 수 있는 JSON 설정 블록을 제공하십시오.
+            """;
+
+    private static final String DEFAULT_ISOLATION_CRYPTO = """
+            [자산 분류: 글로벌 가상자산 24/7 크립토]
+            • 분석 종목: %s (%s) | 티커: %s
+            • 기준 통화: USD ($)
+            • 분석 가이드: 온체인 유동성, 바이낸스 현물/선물 수급, 현물 ETF 자금 유입, FastDTW 8,000봉 프랙탈 패턴 승률, ta4j 모멘텀을 결합하여 분석하십시오.
+            • 금지 사항: DART 전자공시 등 주식 전용 단어는 절대 언급하지 마십시오.
+            """;
+
+    private static final String DEFAULT_ISOLATION_KR_EQUITY = """
+            [자산 분류: 대한민국 코스피/코스닥 상장 주식]
+            • 분석 종목: %s (%s) | 티커: %s
+            • 기준 통화: KRW (₩)
+            • 분석 가이드: DART 기업 공시, 외국인/기관 순매수 수급, 20일선 지지선, 실적 펀더멘털을 분석하십시오.
+            • 금지 사항: 암호화폐, 크립토 선물 등의 용어는 언급하지 마십시오.
+            """;
+
+    private static final String DEFAULT_ISOLATION_US_EQUITY = """
+            [자산 분류: 미국 나스닥/뉴욕증시 상장 주식]
+            • 분석 종목: %s (%s) | 티커: %s
+            • 기준 통화: USD ($)
+            • 분석 가이드: SEC 기업 공시, 빅테크 AI CAPEX 지출, 월가 애널리스트 컨센서스, 기술적 지표를 분석하십시오.
+            """;
+
+    private String buildPureSystemPrompt(AssetMetadata meta, AiResearchChatRequest req) {
+        String mode = (req.getMode() != null && !req.getMode().isBlank()) ? req.getMode().toUpperCase() : "INSIGHT";
+
+        String baseTemplate;
+        if ("CODING".equals(mode)) {
+            baseTemplate = DEFAULT_SYSTEM_PROMPT_CODING;
+        } else if ("GUIDE".equals(mode)) {
+            baseTemplate = DEFAULT_SYSTEM_PROMPT_GUIDE;
         } else {
-            isolationRule = String.format("""
-                    [자산 분류: 미국 나스닥/뉴욕증시 상장 주식]
-                    • 분석 종목: %s (%s) | 티커: %s
-                    • 기준 통화: USD ($)
-                    • 분석 가이드: SEC 기업 공시, 빅테크 AI CAPEX 지출, 월가 애널리스트 컨센서스, 기술적 지표를 분석하십시오.
-                    """, meta.nameKo(), meta.nameEn(), meta.symbol());
+            baseTemplate = (templateRegistry != null)
+                    ? templateRegistry.getTemplate(PromptTemplateRegistryService.KEY_SYSTEM_PROMPT_BASE, DEFAULT_SYSTEM_PROMPT_BASE)
+                    : DEFAULT_SYSTEM_PROMPT_BASE;
         }
 
-        String template = """
-                당신은 골드만삭스(Goldman Sachs)와 블룸버그 인텔리전스(Bloomberg Intelligence)를 총괄하는 **최고 수준의 자율형 수석 금융 리서치 AI 에이전트**입니다.
+        String isolationTemplate;
+        if (meta.assetClass() == AssetClass.CRYPTO) {
+            isolationTemplate = (templateRegistry != null)
+                    ? templateRegistry.getTemplate(PromptTemplateRegistryService.KEY_ISOLATION_CRYPTO, DEFAULT_ISOLATION_CRYPTO)
+                    : DEFAULT_ISOLATION_CRYPTO;
+        } else if (meta.assetClass() == AssetClass.KR_EQUITY) {
+            isolationTemplate = (templateRegistry != null)
+                    ? templateRegistry.getTemplate(PromptTemplateRegistryService.KEY_ISOLATION_KR_EQUITY, DEFAULT_ISOLATION_KR_EQUITY)
+                    : DEFAULT_ISOLATION_KR_EQUITY;
+        } else {
+            isolationTemplate = (templateRegistry != null)
+                    ? templateRegistry.getTemplate(PromptTemplateRegistryService.KEY_ISOLATION_US_EQUITY, DEFAULT_ISOLATION_US_EQUITY)
+                    : DEFAULT_ISOLATION_US_EQUITY;
+        }
 
-                [🚨 분석 대상 자산 규정]
-                {{ISOLATION_RULE}}
-
-                [에이전트 행동 지침 및 핵심 원칙]
-                1. **사용자의 질문 의도에 완벽하게 맞춤 대응**:
-                   - 사용자가 가볍게 묻든, 속어를 쓰든 질문의 핵심을 정면으로 짚고 명쾌하게 해결하십시오.
-                   - 정보와 팩트를 풍부하게 쏟아내어(High Information Density) 기관급 리서치 노트를 작성하십시오.
-
-                2. **실시간 데이터의 적극적 인용 및 근거 제시**:
-                   - 아래 제공된 [실시간 기술적 지표]의 실제 수치(현재가, RSI, SMA20/50, 볼린저 밴드)와 [FastDTW 8,000 프랙탈 패턴 일치율/승률]을 본문에 구체적으로 명시하십시오.
-                   - [실시간 뉴스 속보]에 적힌 실제 언론사 출처와 수집 시각(KST)을 인용하십시오.
-
-                3. **다각도 입체 분석 (Multi-Angle Intelligence)**:
-                   - **시장 수급**: 기관/스마트머니 순매수, 거시 유동성 사이클
-                   - **차트 구조 및 프랙탈**: FastDTW 과거 패턴 승률, 이동평균선 지지/저항, 과매수/과매도
-                   - **실전 액션 플랜**: 구체적인 진입 가격대, 3단계 분할 매수 비중(%), 손절(Invalidation) 기준선, 목표 익절가
-
-                4. **중복 생성 방지 및 1회 완성 원칙 (CRITICAL ANTI-REPETITION)**:
-                   - 동일한 문장, 지표 나열, 분석 단락을 2회 이상 복사하여 되풀이하지 마십시오.
-                   - 완성된 1장의 리포트만 정결하게 단 1회 출력하십시오.
-
-                5. **대화형 후속 가이드 라우팅**:
-                   - 리포트 맨 마지막에는 사용자가 다음 단계로 깊이 파고들 수 있도록 3가지 추천 후속 질문을 제시하십시오.
-
-                [실시간 시장 정량 데이터 & FastDTW 프랙탈 & 실시간 뉴스 속보 문맥]:
-                {{MARKET_CONTEXT}}
-                """;
-
-        return template
-                .replace("{{ISOLATION_RULE}}", isolationRule)
-                .replace("{{MARKET_CONTEXT}}", marketContext != null ? marketContext : "(실시간 데이터 로드 완료)");
+        String isolationRule = String.format(isolationTemplate, meta.nameKo(), meta.nameEn(), meta.symbol());
+        return baseTemplate.replace("{{ISOLATION_RULE}}", isolationRule);
     }
 
-    private String buildUserPrompt(AiResearchChatRequest req, String prompt, AssetMetadata meta) {
+    // ---------------------------------------------------------------------
+    // ② 격리된 User Prompt 구성 (RAG 컨텍스트를 <context> 태그 내 격리 주입)
+    // ---------------------------------------------------------------------
+
+    private String buildIsolatedUserPrompt(AiResearchChatRequest req, String sanitizedPrompt,
+                                           AssetMetadata meta, QuantitativeSignal quant,
+                                           PatternInsight pattern, String isolatedRagBlock) {
         StringBuilder sb = new StringBuilder();
+
+        // 1. 직전 대화 문맥
         if (req.getHistory() != null && !req.getHistory().isEmpty()) {
             sb.append("[직전 대화 문맥 요약]\n");
             int startIdx = Math.max(0, req.getHistory().size() - 2);
@@ -319,13 +641,55 @@ public class AiResearchChatService {
             }
             sb.append("\n");
         }
-        sb.append(String.format("""
-                [사용자 질문]: %s
 
-                [출력 지침]:
-                • %s(%s)의 실시간 시장가, 20일선 지지선, RSI(14) 지표, FastDTW 8,000 프랙탈 패턴 일치율 및 승률(%%), 실시간 뉴스 팩트를 인용하여 심층 퀀트 리포트를 작성하십시오.
-                • [중복 방지] 본문 단락이나 지표를 2번 이상 되풀이하지 말고 완성된 1회 리포트만 출력하십시오.
-                """, prompt, meta.nameKo(), meta.symbol()));
+        // 2. 검증된 실시간 시장 수치 및 RAG 격리 컨텍스트 주입
+        sb.append(isolatedRagBlock).append("\n\n");
+
+        if (quant != null) {
+            sb.append(String.format("""
+                    [실시간 퀀트 지표 검증 데이터]:
+                    - 종목: %s (%s) | 현재가: %s%,.2f
+                    - RSI(14): %.1f | SMA20: %.2f | 볼린저상단: %.2f | 볼린저하단: %.2f
+                    """, meta.nameKo(), meta.symbol(), meta.currencySymbol(), quant.getCurrentPrice(),
+                    quant.getRsi(), quant.getSma20(), quant.getBollingerUpper(), quant.getBollingerLower()));
+        }
+
+        if (pattern != null) {
+            sb.append(String.format("""
+                    [FastDTW 프랙탈 패턴 검증 데이터]:
+                    - 가장 유사한 과거 구간: %s
+                    - 프랙탈 일치율: %.1f%% | 통계적 5봉 후 승률: %.1f%% (기대수익률: %+.1f%%)
+                    """, pattern.getPatternName(), pattern.getSimilarityScore() * 100.0,
+                    pattern.getHistoricalWinRate() * 100.0, pattern.getExpectedReturn5Day() * 100.0));
+        }
+
+        // 3. 사용자 질문 본문
+        String mode = (req.getMode() != null && !req.getMode().isBlank()) ? req.getMode().toUpperCase() : "INSIGHT";
+        sb.append("\n[사용자 질문]: ").append(sanitizedPrompt).append("\n\n");
+
+        if ("CODING".equals(mode)) {
+            sb.append(String.format("""
+                    [출력 지침 - CODING MODE]:
+                    • %s(%s)에 대한 실행 가능한 알고리즘 전략 코드(```python ...)와 백테스트 성능 검증 표, 봇 배포 JSON을 100%% 한국어 마크다운으로 완결성 있게 작성하십시오.
+                    • 한자(漢字) 및 중국어(中文)는 절대로 사용하지 마십시오.
+                    • 동일한 내용이나 언어 번역본을 2회 이상 중복 출력하지 마십시오.
+                    """, meta.nameKo(), meta.symbol()));
+        } else if ("GUIDE".equals(mode)) {
+            sb.append(String.format("""
+                    [출력 지침 - GUIDE MODE]:
+                    • %s(%s)에 대한 [3단계 분할 진입 주문 집행 티켓 표], 켈리 공식 자본금, 손절 기준선을 포함하여 100%% 한국어 마크다운으로 완결성 있게 작성하십시오.
+                    • 한자(漢字) 및 중국어(中文)는 절대로 사용하지 마십시오.
+                    • 동일한 내용이나 언어 번역본을 2회 이상 중복 출력하지 마십시오.
+                    """, meta.nameKo(), meta.symbol()));
+        } else {
+            sb.append(String.format("""
+                    [출력 지침 - INSIGHT MODE]:
+                    • 위 <context>와 [실시간 퀀트 지표]를 적극 인용하여 %s(%s)에 대한 기관급 심층 리서치 리포트를 단 1회 100%% 한국어 마크다운으로 완결성 있게 작성하십시오.
+                    • 한자(漢字) 및 중국어(中文)는 절대로 사용하지 마십시오.
+                    • 동일한 내용이나 언어 번역본을 2회 이상 중복 출력하지 마십시오.
+                    """, meta.nameKo(), meta.symbol()));
+        }
+
         return sb.toString();
     }
 

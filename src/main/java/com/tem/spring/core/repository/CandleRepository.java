@@ -19,5 +19,8 @@ public interface CandleRepository extends JpaRepository<CandleEntity, Long> {
     @Query("SELECT c FROM CandleEntity c WHERE c.symbol = :symbol ORDER BY c.timestamp DESC")
     List<CandleEntity> findRecentCandlesBySymbol(@Param("symbol") String symbol, Pageable pageable);
 
+    @Query("SELECT c.timestamp FROM CandleEntity c WHERE c.symbol = :symbol AND c.timestamp IN :timestamps")
+    java.util.Set<ZonedDateTime> findExistingTimestamps(@Param("symbol") String symbol, @Param("timestamps") java.util.Collection<ZonedDateTime> timestamps);
+
     boolean existsBySymbolAndTimestamp(String symbol, ZonedDateTime timestamp);
 }

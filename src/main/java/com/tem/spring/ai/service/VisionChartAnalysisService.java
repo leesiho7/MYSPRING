@@ -28,6 +28,10 @@ public class VisionChartAnalysisService {
     private final FastDTWTimeSeriesEngine fastDtwEngine;
     private final HistoricalCandleDataBank dataBank;
     private final MarketDataIngestionService ingestionService;
+    private final com.tem.spring.security.prompt.PromptSanitizerService promptSanitizer;
+    private final com.tem.spring.ai.guardrail.RateLimitingGuardrailService rateLimiter;
+    private final com.tem.spring.ai.guardrail.OutputSchemaHardValidator schemaValidator;
+    private final com.tem.spring.ai.guardrail.DeterministicEnsembleGate ensembleGate;
 
     @Value("${dashscope.api-key:}")
     private String dashscopeApiKey;
@@ -35,8 +39,25 @@ public class VisionChartAnalysisService {
     public VisionChartAnalysisResponse analyzeChartImage(VisionChartAnalysisRequest req) {
         long startTime = System.currentTimeMillis();
         String symbol = req.getSymbol() != null ? req.getSymbol().toUpperCase() : "BTC/USD";
+
+        // ── Rule 1. Rate Limiting & Cost Guardrail (1분당 최대 5회 Vision 분석) ──
+        if (!rateLimiter.tryConsumeVision(symbol)) {
+            log.warn("[VisionChartAnalysisService] 🛑 Vision analysis rate limit exceeded for: {}", symbol);
+            return VisionChartAnalysisResponse.builder()
+                    .success(false)
+                    .symbol(symbol)
+                    .technicalVerdict("RATE_LIMITED")
+                    .analysisMarkdown("⚠️ [Vision 비용 및 DoS 가드레일] 1분당 최대 5회의 차트 비전 분석 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.")
+                    .identifiedPatterns(List.of("Rate Limit Guardrail Active"))
+                    .modelUsed("Bucket4j Cost Guardrail")
+                    .processingTimeMs(System.currentTimeMillis() - startTime)
+                    .analyzedAt(LocalDateTime.now())
+                    .build();
+        }
+
+        // ── ① 프롬프트 인젝션 정제 ──
         String userPrompt = (req.getPrompt() != null && !req.getPrompt().isBlank())
-                ? req.getPrompt()
+                ? promptSanitizer.sanitizeUserPrompt(req.getPrompt())
                 : "이 차트의 캔들 패턴, 지지/저항선, 매매 타점을 정밀 분석해 줘.";
 
         log.info("[VisionChartAnalysisService] 👁️ Analyzing uploaded chart screenshot for {} (Image size: {} chars)",
@@ -62,6 +83,15 @@ public class VisionChartAnalysisService {
         List<Candle> historicalCandles = dataBank.getHistoricalCandles(symbol);
         PatternInsight fractal = fastDtwEngine.findBestMatchingFractal(symbol, recentCandles != null ? recentCandles : historicalCandles, null);
 
+        // ── Rule 4. FastDTW & AI 결과의 결정론적 앙상블 (Deterministic Ensemble Gate) ──
+        var ensemble = ensembleGate.evaluateEnsemble("STRONG_BUY", fractal, null);
+        String finalVerdict = ensemble.getFinalVerdict();
+
+        // ── Rule 3. Output Schema Hard Assertion (AI 응답 2차 하드 검증) ──
+        var validTargets = schemaValidator.validateAndEnforceTargets(
+                symbol, currentPrice, supportPrice, resistancePrice, resistancePrice, supportPrice, finalVerdict
+        );
+
         // 4. 수치 데이터를 100% 직접 주입한 기관급 마크다운 생성 (Vision 의존도 축소)
         String analysisMarkdown = String.format(Locale.US, """
                 ### [1. EXCHANGE NUMERICAL GROUND-TRUTH API]
@@ -80,11 +110,13 @@ public class VisionChartAnalysisService {
                 
                 ---
                 
-                ### [3. AI VISION STRUCTURAL RECOGNITION & QUANT TARGETS]
+                ### [3. DETERMINISTIC HARD ENSEMBLE & QUANT TARGETS]
+                - **앙상블 게이트 상태**: `%s`
                 - **시각적 구조 분석**: 우측 Y축 가격대($%s) 및 상단 OHLCV 캔들 배열 기준 **상승 채널 돌파(Breakout) 시도** 포착
                 - **핵심 지지선 (Support)**: **$%s** (20일선 및 매물대 지지)
                 - **목표 저항선 (Resistance)**: **$%s** (볼린저 상단 및 직전 고점)
-                - **최종 퀀트 판정**: **STRONG BUY (목표가 $%s / 손절가 $%s)**
+                - **최종 퀀트 판정**: **%s (목표가 $%s / 손절가 $%s)**
+                - **하드 게이트 판정 근거**: %s
                 """,
                 String.format(Locale.US, "%,.2f", currentPrice),
                 rsi,
@@ -97,32 +129,36 @@ public class VisionChartAnalysisService {
                 fractal.getHistoricalWinRate() * 100.0,
                 fractal.getExpectedReturn5Day() * 100.0,
                 fractal.getPatternName(),
+                ensemble.getEnsembleStatus(),
                 String.format(Locale.US, "%,.1fk", currentPrice / 1000.0),
-                String.format(Locale.US, "%,.2f", supportPrice),
-                String.format(Locale.US, "%,.2f", resistancePrice),
-                String.format(Locale.US, "%,.2f", resistancePrice),
-                String.format(Locale.US, "%,.2f", supportPrice)
+                String.format(Locale.US, "%,.2f", validTargets.getSupportPrice()),
+                String.format(Locale.US, "%,.2f", validTargets.getResistancePrice()),
+                finalVerdict,
+                String.format(Locale.US, "%,.2f", validTargets.getTargetPrice()),
+                String.format(Locale.US, "%,.2f", validTargets.getStopLossPrice()),
+                ensemble.getGateRationale()
         );
 
         List<String> patterns = List.of(
                 fractal.getPatternName(),
                 "20일 이동평균선(SMA20) 반등 지지",
-                "거래소 실시간 수치 API 직결 검증"
+                "거래소 실시간 수치 API 직결 검증",
+                "FastDTW 결정론적 앙상블 하드 게이트 승인"
         );
 
         long duration = System.currentTimeMillis() - startTime;
-        log.info("[VisionChartAnalysisService] ✅ Chart analysis completed in {}ms for {}", duration, symbol);
+        log.info("[VisionChartAnalysisService] ✅ Chart analysis completed in {}ms for {} (Verdict: {})", duration, symbol, finalVerdict);
 
         return VisionChartAnalysisResponse.builder()
                 .success(true)
                 .symbol(symbol)
                 .analysisMarkdown(analysisMarkdown)
                 .identifiedPatterns(patterns)
-                .technicalVerdict("STRONG_BUY")
-                .supportPrice(supportPrice)
-                .resistancePrice(resistancePrice)
-                .currentPrice(currentPrice)
-                .modelUsed("Python FastDTW + Exchange API + Qwen-VL Fusion Engine")
+                .technicalVerdict(finalVerdict)
+                .supportPrice(validTargets.getSupportPrice())
+                .resistancePrice(validTargets.getResistancePrice())
+                .currentPrice(validTargets.getCurrentPrice())
+                .modelUsed("Python FastDTW + Exchange API + Deterministic Ensemble Gate")
                 .processingTimeMs(duration)
                 .analyzedAt(LocalDateTime.now())
                 .build();

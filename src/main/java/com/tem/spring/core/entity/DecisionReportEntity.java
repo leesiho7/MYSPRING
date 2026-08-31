@@ -49,6 +49,20 @@ public class DecisionReportEntity {
     @Column(columnDefinition = "TEXT")
     private String agentReflection;
 
+    // Model Lineage & Dynamic Regime Tracking
+    @Column(length = 50)
+    private String marketRegime;
+
+    @Column(length = 50)
+    private String llmModelName;
+
+    @Column(length = 50)
+    private String promptVersion;
+
+    private double quantWeight;
+    private double qualWeight;
+    private double patternWeight;
+
     @Column(nullable = false)
     private LocalDateTime generatedAt;
 }

@@ -20,6 +20,7 @@ public class AiResearchChatRequest {
     private String depth;
     private String amount;
     private String horizon;
+    private String mode; // "INSIGHT", "GUIDE", "CODING"
     private List<ChatMessageDto> history;
 
     @Data

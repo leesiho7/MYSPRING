@@ -35,6 +35,19 @@ public class BrightDataNewsScraperService {
     private final WebClient webClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    // [Resilience4j Circuit Breaker (비용 & API 쿼타 & 타임아웃 보호)]
+    // 외부 스크래핑/언락커 3회 이상 실패 or 실패율 50% 초과 시 서킷 OPEN -> 즉시 Fallback 전환
+    private final io.github.resilience4j.circuitbreaker.CircuitBreaker circuitBreaker =
+            io.github.resilience4j.circuitbreaker.CircuitBreaker.of("brightDataScraper",
+                    io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.custom()
+                            .failureRateThreshold(50.0f)
+                            .slidingWindowSize(6)
+                            .minimumNumberOfCalls(3)
+                            .waitDurationInOpenState(java.time.Duration.ofSeconds(30))
+                            .permittedNumberOfCallsInHalfOpenState(2)
+                            .build()
+            );
+
     public BrightDataNewsScraperService(WebClient.Builder webClientBuilder) {
         this.webClient = webClientBuilder
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -174,6 +187,11 @@ public class BrightDataNewsScraperService {
     }
 
     private CachedNews scrapeLiveWebNews(String symbol) {
+        if (circuitBreaker.getState() == io.github.resilience4j.circuitbreaker.CircuitBreaker.State.OPEN) {
+            log.warn("[LiveWebScraper] ⚡ CircuitBreaker is OPEN. Skipping external scraping for {} and using instant fallback.", symbol);
+            return null;
+        }
+
         String ticker = resolveYahooFinanceTicker(symbol);
         long now = System.currentTimeMillis();
         String timeStr = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
@@ -181,63 +199,69 @@ public class BrightDataNewsScraperService {
                 .format(java.time.Instant.ofEpochMilli(now));
 
         try {
-            String url = "https://query1.finance.yahoo.com/v1/finance/search?q=" + java.net.URLEncoder.encode(ticker, java.nio.charset.StandardCharsets.UTF_8) + "&quotesCount=1&newsCount=6";
-            String res = webClient.get()
-                    .uri(url)
-                    .header(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .timeout(java.time.Duration.ofSeconds(3))
-                    .block();
+            return circuitBreaker.executeSupplier(() -> {
+                String url = "https://query1.finance.yahoo.com/v1/finance/search?q=" + java.net.URLEncoder.encode(ticker, java.nio.charset.StandardCharsets.UTF_8) + "&quotesCount=1&newsCount=6";
+                String res = webClient.get()
+                        .uri(url)
+                        .header(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .timeout(java.time.Duration.ofSeconds(3))
+                        .block();
 
-            if ((res == null || res.isBlank()) && enabled) {
-                log.info("[LiveWebScraper] Direct gateway miss. Escalating to Tier 2 Bright Data Web Unlocker for {}", symbol);
-                res = fetchViaBrightDataWebUnlocker(url);
-            }
+                if ((res == null || res.isBlank()) && enabled) {
+                    log.info("[LiveWebScraper] Direct gateway miss. Escalating to Tier 2 Bright Data Web Unlocker for {}", symbol);
+                    res = fetchViaBrightDataWebUnlocker(url);
+                }
 
-            if (res != null && !res.isBlank()) {
-                JsonNode root = objectMapper.readTree(res);
-                JsonNode newsArray = root.path("news");
-                if (newsArray.isArray() && newsArray.size() > 0) {
-                    List<String> headlines = new ArrayList<>();
-                    List<String> images = new ArrayList<>();
+                if (res != null && !res.isBlank()) {
+                    try {
+                        JsonNode root = objectMapper.readTree(res);
+                        JsonNode newsArray = root.path("news");
+                        if (newsArray.isArray() && newsArray.size() > 0) {
+                            List<String> headlines = new ArrayList<>();
+                            List<String> images = new ArrayList<>();
 
-                    for (JsonNode n : newsArray) {
-                        String title = n.path("title").asText("");
-                        String publisher = n.path("publisher").asText("Bloomberg / Reuters");
-                        String link = n.path("link").asText("");
+                            for (JsonNode n : newsArray) {
+                                String title = n.path("title").asText("");
+                                String publisher = n.path("publisher").asText("Bloomberg / Reuters");
+                                String link = n.path("link").asText("");
 
-                        JsonNode thumbNode = n.path("thumbnail").path("resolutions");
-                        String imgUrl = "";
-                        if (thumbNode.isArray() && thumbNode.size() > 0) {
-                            imgUrl = thumbNode.get(0).path("url").asText("");
+                                JsonNode thumbNode = n.path("thumbnail").path("resolutions");
+                                String imgUrl = "";
+                                if (thumbNode.isArray() && thumbNode.size() > 0) {
+                                    imgUrl = thumbNode.get(0).path("url").asText("");
+                                }
+                                if (imgUrl.isBlank() || !imgUrl.startsWith("http")) {
+                                    imgUrl = getFallbackImageUrl(symbol);
+                                }
+                                images.add(imgUrl);
+
+                                if (!title.isBlank()) {
+                                    headlines.add(String.format("[출처: %s | 수집시각: %s KST] %s - %s", publisher, timeStr, title, link));
+                                }
+                            }
+
+                            if (!headlines.isEmpty()) {
+                                log.info("[LiveWebScraper] Successfully scraped {} LIVE articles from web for: {}", headlines.size(), symbol);
+                                return CachedNews.builder()
+                                        .headlines(headlines)
+                                        .primaryImageUrl(!images.isEmpty() ? images.get(0) : getFallbackImageUrl(symbol))
+                                        .imageUrls(images)
+                                        .timestamp(now)
+                                        .build();
+                            }
                         }
-                        if (imgUrl.isBlank() || !imgUrl.startsWith("http")) {
-                            imgUrl = getFallbackImageUrl(symbol);
-                        }
-                        images.add(imgUrl);
-
-                        if (!title.isBlank()) {
-                            headlines.add(String.format("[출처: %s | 수집시각: %s KST] %s - %s", publisher, timeStr, title, link));
-                        }
-                    }
-
-                    if (!headlines.isEmpty()) {
-                        log.info("[LiveWebScraper] Successfully scraped {} LIVE articles from web for: {}", headlines.size(), symbol);
-                        return CachedNews.builder()
-                                .headlines(headlines)
-                                .primaryImageUrl(!images.isEmpty() ? images.get(0) : getFallbackImageUrl(symbol))
-                                .imageUrls(images)
-                                .timestamp(now)
-                                .build();
+                    } catch (Exception parseEx) {
+                        log.debug("[LiveWebScraper] JSON parse fallback: {}", parseEx.getMessage());
                     }
                 }
-            }
+                return null;
+            });
         } catch (Exception e) {
-            log.warn("[LiveWebScraper] Live web query notice for {}: {}", symbol, e.getMessage());
+            log.warn("[LiveWebScraper] ⚠️ CircuitBreaker recorded scraping error for {}: {}", symbol, e.getMessage());
+            return null;
         }
-
-        return null;
     }
 
     private String resolveYahooFinanceTicker(String symbol) {

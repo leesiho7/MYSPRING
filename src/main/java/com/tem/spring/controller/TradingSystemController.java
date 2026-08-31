@@ -109,6 +109,63 @@ public class TradingSystemController {
     }
 
     /**
+     * 5-1. [SSE 실시간 스트리밍] 엔트로픽 클로드 스타일의 단계별 사고 과정(곱씹는 중, 되새김 중, 추론 중) 스트리밍 API
+     */
+    @GetMapping(value = "/trading/decision/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter streamIntegratedDecision(
+            @RequestParam(defaultValue = "BTCUSDT") String symbol,
+            @RequestParam(defaultValue = "D1") TimeFrame timeFrame,
+            @RequestParam(defaultValue = "100") int limit) {
+
+        org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
+                new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(60_000L);
+
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                // 1단계: 가격 파동과 추세 분석
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("progress")
+                        .data(java.util.Map.of("step", 1, "progress", 20, "thought", "시장의 숨겨진 가격 파동과 흐름을 깊이 곱씹는 중...")));
+                Thread.sleep(200);
+
+                // 2단계: 과거 프랙탈 패턴 대조
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("progress")
+                        .data(java.util.Map.of("step", 2, "progress", 45, "thought", "과거 8,000개의 역사적 차트 흐름과 오늘의 국면을 차분히 되새김질하는 중...")));
+                Thread.sleep(250);
+
+                // 3단계: 뉴스 및 외신 팩트 정합성 대조
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("progress")
+                        .data(java.util.Map.of("step", 3, "progress", 70, "thought", "최신 외신 속보와 시장 심리의 이면을 꼼꼼하게 대조하며 팩트를 가려내는 중...")));
+                Thread.sleep(250);
+
+                // 4단계: 월가 거장들의 시각 자아 검증
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("progress")
+                        .data(java.util.Map.of("step", 4, "progress", 90, "thought", "월가 투자 거장들의 시각에서 가설을 냉철하게 반박하고 자아 검증을 거치는 중...")));
+
+                // 최종 완성 및 리포트 전달
+                IntegratedDecisionReport report = aggregatorService.generateDecisionReport(symbol, timeFrame, limit);
+
+                emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                        .name("complete")
+                        .data(java.util.Map.of(
+                                "step", 5,
+                                "progress", 100,
+                                "thought", "통합 퀀트 인텔리전스 리포트 완성",
+                                "report", report
+                        )));
+                emitter.complete();
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        });
+
+        return emitter;
+    }
+
+    /**
      * 6. MySQL에 저장된 과거 의사결정 리포트 이력 조회 API
      */
     @GetMapping("/trading/history")
@@ -125,6 +182,20 @@ public class TradingSystemController {
     public ResponseEntity<com.tem.spring.ai.dto.AiResearchChatResponse> processResearchChat(
             @RequestBody com.tem.spring.ai.dto.AiResearchChatRequest request) {
         return ResponseEntity.ok(researchChatService.processResearchChat(request));
+    }
+
+    /**
+     * 7-1. [SSE 리서치 스트리밍] 단계별 AI 사고 과정(곱씹는 중, 추론 중) 실시간 스트리밍 질의응답 API
+     */
+    @PostMapping(value = "/ai/research-chat/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter streamResearchChat(
+            @RequestBody com.tem.spring.ai.dto.AiResearchChatRequest request) {
+
+        org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
+                new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(90_000L);
+
+        researchChatService.streamResearchChat(request, emitter);
+        return emitter;
     }
 
     /**

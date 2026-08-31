@@ -21,12 +21,15 @@ public class FinancialNewsRagService {
 
     private final VectorStore vectorStore;
     private final com.tem.spring.ai.service.BrightDataNewsScraperService brightDataService;
+    private final com.tem.spring.security.prompt.PromptSanitizerService promptSanitizer;
     private boolean seeded = false;
 
     public FinancialNewsRagService(@Autowired(required = false) VectorStore vectorStore,
-                                  @Autowired(required = false) com.tem.spring.ai.service.BrightDataNewsScraperService brightDataService) {
+                                  @Autowired(required = false) com.tem.spring.ai.service.BrightDataNewsScraperService brightDataService,
+                                  com.tem.spring.security.prompt.PromptSanitizerService promptSanitizer) {
         this.vectorStore = vectorStore;
         this.brightDataService = brightDataService;
+        this.promptSanitizer = promptSanitizer;
         initInstitutionalKnowledgeBase();
     }
 
@@ -131,10 +134,35 @@ public class FinancialNewsRagService {
         // 3. VectorStore 및 웹 스크래핑 모두 실패한 경우 최종 기본 뉴스 제공
         if (combinedContext.isEmpty()) {
             log.info("[FinancialNewsRagService] ⚠️ Utilizing institutional baseline fallback news for {}", symbol);
-            return generateFallbackNews(symbol);
+            combinedContext = generateFallbackNews(symbol);
         }
 
-        return combinedContext.stream().distinct().collect(Collectors.toList());
+        // 4. [Rule 2. RAG Context Strict Truncation & Prompt Sanitization]
+        List<String> sanitized = (promptSanitizer != null)
+                ? promptSanitizer.sanitizeRagSnippets(combinedContext)
+                : combinedContext;
+
+        return sanitized.stream().distinct().collect(Collectors.toList());
+    }
+
+    public record RagQueryResult(List<String> snippets, List<String> docIds, boolean isVectorHit) {}
+
+    public RagQueryResult retrieveRelevantNewsWithDetails(String symbol) {
+        List<String> snippets = retrieveRelevantNews(symbol);
+        List<String> docIds = new ArrayList<>();
+        if (vectorStore != null) {
+            try {
+                String query = String.format("%s 최근 금융 시장 속보 및 실적 공시 기관 동향", symbol);
+                org.springframework.ai.vectorstore.SearchRequest searchRequest = org.springframework.ai.vectorstore.SearchRequest.query(query)
+                        .withSimilarityThreshold(similarityThreshold)
+                        .withTopK(topK);
+                List<Document> docs = vectorStore.similaritySearch(searchRequest);
+                if (docs != null) {
+                    docIds = docs.stream().map(Document::getId).toList();
+                }
+            } catch (Exception ignored) {}
+        }
+        return new RagQueryResult(snippets, docIds, !docIds.isEmpty());
     }
 
     // 실시간 인덱싱된 문서 ID 중복 방지 추적 캐시 (Deduplication Set)
@@ -148,18 +176,28 @@ public class FinancialNewsRagService {
                     .format(java.time.Instant.now());
 
             List<Document> freshDocs = new ArrayList<>();
-            for (String news : newsList) {
-                if (news == null || news.isBlank()) continue;
+            for (String rawNews : newsList) {
+                if (rawNews == null || rawNews.isBlank()) continue;
+
+                // ── [Vector Poisoning Filter] 악의적 프롬프트 조작/백도어 포함 시 인덱싱 즉시 배제 ──
+                if (promptSanitizer != null && promptSanitizer.isVectorPoisoned(rawNews)) {
+                    log.warn("[FinancialNewsRagService] 🚨 Vector Poisoning attempt blocked! Dropping article from VectorStore indexing: '{}'",
+                            rawNews.length() > 60 ? rawNews.substring(0, 60) + "..." : rawNews);
+                    continue;
+                }
+
+                String cleanContent = promptSanitizer != null ? promptSanitizer.cleanForVectorStore(rawNews) : rawNews.trim();
+                if (cleanContent.isBlank()) continue;
 
                 // 내용 및 종목 기반 고유 Deterministic Document ID 생성 (중복 인덱싱 원천 차단)
                 String docId = "news_" + java.util.UUID.nameUUIDFromBytes(
-                        (symbol.toUpperCase() + ":" + news.trim()).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+                        (symbol.toUpperCase() + ":" + cleanContent).getBytes(java.nio.charset.StandardCharsets.UTF_8)
                 ).toString();
 
                 if (indexedDocumentIds.add(docId)) {
                     Document doc = Document.builder()
                             .withId(docId)
-                            .withContent(news)
+                            .withContent(cleanContent)
                             .withMetadata(Map.of(
                                     "symbol", symbol.toUpperCase(),
                                     "source", "Bright Data Live SERP Crawler",

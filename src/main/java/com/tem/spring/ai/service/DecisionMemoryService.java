@@ -29,17 +29,40 @@ public class DecisionMemoryService {
     }
 
     public String retrieveRelevantReflection(String symbol, QuantitativeSignal quant, QualitativeInsight qual) {
+        return retrieveRelevantReflection("GLOBAL", symbol, quant, qual);
+    }
+
+    /**
+     * 멀티 테넌트 메모리 격리 (Decision Memory Isolation)
+     * - A 유저/테넌트의 전략이 B 유저의 RAG 컨텍스트에 섞이지 않도록 tenantId 메타데이터를 강제 격리 검증합니다.
+     */
+    public String retrieveRelevantReflection(String tenantId, String symbol, QuantitativeSignal quant, QualitativeInsight qual) {
+        String effectiveTenant = (tenantId != null && !tenantId.isBlank()) ? tenantId : "GLOBAL";
         String query = String.format("Symbol: %s, QuantScore: %.2f, SentimentScore: %.2f, Action: %s",
                 symbol, quant.getQuantScore(), qual.getSentimentScore(), quant.getSuggestedAction());
 
-        log.info("[DecisionMemoryService] Searching past decision memory for: {}", query);
+        log.info("[DecisionMemoryService] 🔒 Searching tenant-isolated past decision memory for [{}] (Query: {})", effectiveTenant, query);
 
         if (vectorStore != null) {
             try {
                 List<Document> memories = vectorStore.similaritySearch(query);
                 if (memories != null && !memories.isEmpty()) {
-                    Document topMemory = memories.get(0);
-                    return topMemory.getContent();
+                    long now = System.currentTimeMillis();
+                    for (Document doc : memories) {
+                        // 1. 멀티 테넌트 메타데이터 검증 필터링
+                        Object docTenant = doc.getMetadata().get("tenantId");
+                        boolean tenantMatched = docTenant == null || "GLOBAL".equals(docTenant) || effectiveTenant.equals(docTenant);
+                        if (!tenantMatched) continue;
+
+                        // 2. [TTL & Soft-Deletion Filter] 만료일자(expiryTimestamp) 초과 메모리 제외
+                        Object expiryObj = doc.getMetadata().get("expiryTimestamp");
+                        if (expiryObj instanceof Number expiryNum && expiryNum.longValue() < now) {
+                            log.debug("[DecisionMemoryService] ⏳ Pruned expired memory: {}", doc.getId());
+                            continue;
+                        }
+
+                        return doc.getContent();
+                    }
                 }
             } catch (Exception e) {
                 log.warn("[DecisionMemoryService] Memory search fallback: {}", e.getMessage());
@@ -50,21 +73,51 @@ public class DecisionMemoryService {
     }
 
     public void recordDecision(String symbol, ActionType action, double score, String reason) {
+        recordDecision("GLOBAL", symbol, action, score, reason);
+    }
+
+    /**
+     * 중요도 기반 필터링(Importance-based Pruning) 및 TTL 수명 메타데이터를 적용하여 의사결정 기억을 영속화합니다.
+     */
+    public void recordDecision(String tenantId, String symbol, ActionType action, double score, String reason) {
+        String effectiveTenant = (tenantId != null && !tenantId.isBlank()) ? tenantId : "GLOBAL";
+
+        // 1. [중요도 기반 Pruning] 유의미한 시그널만 선별 보관 (단순 중립/HOLD 노이즈로 인한 벡터 DB 비대화 방지)
+        boolean isHighConviction = action == ActionType.STRONG_BUY || action == ActionType.STRONG_SELL;
+        boolean hasHighImpactScore = Math.abs(score) >= 0.35;
+        boolean isImportantDivergence = reason != null && (reason.contains("다이버전스") || reason.contains("하드 룰") || reason.contains("손절"));
+
+        if (!isHighConviction && !hasHighImpactScore && !isImportantDivergence) {
+            log.debug("[DecisionMemoryService] 🧹 Skipped trivial low-conviction memory (Score: {}, Action: {})", score, action);
+            return;
+        }
+
+        // 2. [TTL 산출] 고확신 사례는 180일, 일반 유의미 사례는 60일 수명 부여
+        long ttlMillis = (isHighConviction || Math.abs(score) >= 0.70)
+                ? 180L * 24 * 60 * 60 * 1000L
+                : 60L * 24 * 60 * 60 * 1000L;
+        long now = System.currentTimeMillis();
+        long expiryTimestamp = now + ttlMillis;
+
         if (vectorStore != null) {
             try {
                 Document doc = Document.builder()
-                        .withContent(String.format("[%s 이력] %s 매매 권고(점수 %.2f) - 사유: %s",
-                                LocalDateTime.now().toLocalDate(), action, score, reason))
+                        .withContent(String.format("[%s 이력 | 테넌트: %s] %s 매매 권고(점수 %.2f) - 사유: %s",
+                                LocalDateTime.now().toLocalDate(), effectiveTenant, action, score, reason))
                         .withMetadata(Map.of(
                                 "type", "DECISION_MEMORY",
+                                "tenantId", effectiveTenant,
                                 "symbol", symbol,
                                 "action", action.name(),
                                 "score", score,
-                                "timestamp", System.currentTimeMillis()
+                                "importanceScore", Math.abs(score),
+                                "timestamp", now,
+                                "expiryTimestamp", expiryTimestamp
                         ))
                         .build();
                 vectorStore.add(List.of(doc));
-                log.info("[DecisionMemoryService] Decision recorded to memory vector store for {}", symbol);
+                log.info("[DecisionMemoryService] 💾 High-value decision recorded [Tenant: {}, Action: {}, TTL: {} days]",
+                        effectiveTenant, action, ttlMillis / (24 * 60 * 60 * 1000L));
             } catch (Exception e) {
                 log.warn("[DecisionMemoryService] Failed to record decision to vector store: {}", e.getMessage());
             }

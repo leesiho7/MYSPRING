@@ -47,6 +47,19 @@ public class UserQueryEntity {
     @Column(columnDefinition = "TEXT")
     private String ragContext;
 
+    @Column(columnDefinition = "TEXT")
+    private String documentIds;
+
+    private Double fastDtwMatchScore;
+
+    private Double fastDtwWinRate;
+
+    @Column(length = 30)
+    private String ensembleVerdict;
+
+    @Column(columnDefinition = "TEXT")
+    private String gateRationale;
+
     private Long responseTimeMs;
 
     private Boolean isFallback;
