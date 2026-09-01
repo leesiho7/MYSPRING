@@ -88,6 +88,13 @@ public class QwenMaxApiService {
      * Qwen-Max 플래그십 모델로 시스템/유저 프롬프트를 전송하여 기관급 추론 결과를 수신합니다.
      */
     public String generateChat(String systemPrompt, String userPrompt) {
+        return generateChat(systemPrompt, userPrompt, null);
+    }
+
+    /**
+     * Qwen-Max / Qwen-VL-Max 멀티모달 비전 모델로 시스템/유저 프롬프트 및 차트 이미지를 전송하여 기관급 추론을 수행합니다.
+     */
+    public String generateChat(String systemPrompt, String userPrompt, String imageUrl) {
         if (!isEnabled()) {
             return null;
         }
@@ -95,19 +102,31 @@ public class QwenMaxApiService {
         try {
             long start = System.currentTimeMillis();
 
-            List<Map<String, String>> messages = new ArrayList<>();
+            boolean hasImage = imageUrl != null && !imageUrl.isBlank();
+            String targetModel = hasImage ? "qwen-vl-max" : this.model;
+
+            List<Map<String, Object>> messages = new ArrayList<>();
             if (systemPrompt != null && !systemPrompt.isBlank()) {
                 messages.add(Map.of("role", "system", "content", systemPrompt));
             }
             if (userPrompt != null && !userPrompt.isBlank()) {
-                messages.add(Map.of("role", "user", "content", userPrompt));
+                if (hasImage) {
+                    List<Map<String, Object>> contentList = new ArrayList<>();
+                    contentList.add(Map.of("type", "text", "text", userPrompt));
+                    contentList.add(Map.of("type", "image_url", "image_url", Map.of("url", imageUrl)));
+                    messages.add(Map.of("role", "user", "content", contentList));
+                    log.info("[QwenMaxApiService] 📸 Multimodal Chart Vision Activated (Model: {}, ImageSize: {} chars)",
+                            targetModel, imageUrl.length());
+                } else {
+                    messages.add(Map.of("role", "user", "content", userPrompt));
+                }
             }
 
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", model);
+            requestBody.put("model", targetModel);
             requestBody.put("messages", messages);
             requestBody.put("temperature", temperature);
-            requestBody.put("max_tokens", 1200);
+            requestBody.put("max_tokens", 1500);
 
             String responseBody = retry.executeSupplier(() ->
                     circuitBreaker.executeSupplier(() ->
@@ -141,6 +160,13 @@ public class QwenMaxApiService {
      * Qwen-Max 플래그십 모델 실시간 토큰 스트리밍 (SSE / Token-by-Token 타자기 효과)
      */
     public boolean streamChat(String systemPrompt, String userPrompt, java.util.function.Consumer<String> tokenConsumer) {
+        return streamChat(systemPrompt, userPrompt, null, tokenConsumer);
+    }
+
+    /**
+     * Qwen-Max / Qwen-VL-Max 플래그십 모델 실시간 멀티모달 토큰 스트리밍 (차트 비전 지원)
+     */
+    public boolean streamChat(String systemPrompt, String userPrompt, String imageUrl, java.util.function.Consumer<String> tokenConsumer) {
         if (!isEnabled()) {
             return false;
         }
@@ -148,19 +174,31 @@ public class QwenMaxApiService {
         try {
             long start = System.currentTimeMillis();
 
-            List<Map<String, String>> messages = new ArrayList<>();
+            boolean hasImage = imageUrl != null && !imageUrl.isBlank();
+            String targetModel = hasImage ? "qwen-vl-max" : this.model;
+
+            List<Map<String, Object>> messages = new ArrayList<>();
             if (systemPrompt != null && !systemPrompt.isBlank()) {
                 messages.add(Map.of("role", "system", "content", systemPrompt));
             }
             if (userPrompt != null && !userPrompt.isBlank()) {
-                messages.add(Map.of("role", "user", "content", userPrompt));
+                if (hasImage) {
+                    List<Map<String, Object>> contentList = new ArrayList<>();
+                    contentList.add(Map.of("type", "text", "text", userPrompt));
+                    contentList.add(Map.of("type", "image_url", "image_url", Map.of("url", imageUrl)));
+                    messages.add(Map.of("role", "user", "content", contentList));
+                    log.info("[QwenMaxApiService] 📸 Streaming Chart Vision Activated (Model: {}, ImageSize: {} chars)",
+                            targetModel, imageUrl.length());
+                } else {
+                    messages.add(Map.of("role", "user", "content", userPrompt));
+                }
             }
 
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", model);
+            requestBody.put("model", targetModel);
             requestBody.put("messages", messages);
             requestBody.put("temperature", temperature);
-            requestBody.put("max_tokens", 1500);
+            requestBody.put("max_tokens", 1800);
             requestBody.put("stream", true);
 
             String jsonPayload = objectMapper.writeValueAsString(requestBody);

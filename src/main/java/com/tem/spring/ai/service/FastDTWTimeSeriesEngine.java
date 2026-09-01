@@ -118,7 +118,7 @@ public class FastDTWTimeSeriesEngine {
                         .historicalWinRate(winRate)
                         .expectedReturn5Day(expReturn)
                         .patternSummary(String.format(
-                                "과거 %s 프랙탈과 %.1f%% 일치 [Python FastDTW 연산]. 유사 패턴 발생 시 5일 후 승률 %.0f%% (평균 수익률 %+.1f%%) [스캔: %,d개 캔들 in %dms]",
+                                "과거 %s 파동과 %.1f%% 형상 일치 [AETHER 시계열 연산]. 유사 패턴 발생 시 5일 후 승률 %.0f%% (평균 기대수익률 %+.1f%%) [빅데이터 스캔: %,d개 캔들 in %dms]",
                                 bestPeriod, simScore * 100.0, winRate * 100.0, expReturn * 100.0, scanned, execMs))
                         .build();
             }

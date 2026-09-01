@@ -55,7 +55,7 @@ public class DeterministicEnsembleGate {
             overridden = true;
             status = "DOWNGRADED_BY_FASTDTW_GATE";
             rationale = String.format(
-                    "🚨 [하드 게이트 차단] AI는 %s를 추천했으나, FastDTW 과거 프랙탈 승률(%.0f%%)이 40%% 미만(기대수익률 %+.1f%%)이므로 최종 시그널을 'HOLD(관망)'로 강제 다운그레이드했습니다.",
+                    "🚨 [AETHER 리스크 가디언 조정] AI 시그널(%s) 대비 시계열 프랙탈 통계 승률(%.0f%%)이 안전 기준 미달(기대수익률 %+.1f%%)이므로 리스크 방어를 위해 'HOLD(관망)'로 다운그레이드했습니다.",
                     aiVerdict, winRate * 100.0, expReturn * 100.0
             );
             log.warn("[DeterministicEnsembleGate] 🛡️ AI Verdict '{}' overridden to 'HOLD' due to low FastDTW win rate: {}%",
@@ -68,7 +68,7 @@ public class DeterministicEnsembleGate {
             overridden = true;
             status = "PROTECTED_BY_FASTDTW_GATE";
             rationale = String.format(
-                    "⚠️ [하드 게이트 조정] AI는 %s를 추천했으나, FastDTW 과거 프랙탈 승률(%.0f%%) 및 기대수익률(%+.1f%%)이 압도적으로 높아 성급한 매도를 방지하기 위해 'HOLD(관망)'로 조정했습니다.",
+                    "⚠️ [AETHER 리스크 가디언 보호] AI 시그널(%s) 대비 역사적 프랙탈 반등 승률(%.0f%%) 및 기대수익률(%+.1f%%)이 압도적으로 높아 성급한 덤핑을 방어하기 위해 'HOLD(관망)'로 보호 조정했습니다.",
                     aiVerdict, winRate * 100.0, expReturn * 100.0
             );
             log.info("[DeterministicEnsembleGate] 🛡️ AI Verdict '{}' adjusted to 'HOLD' due to strong historical fractal bounce.", aiVerdict);
@@ -76,7 +76,7 @@ public class DeterministicEnsembleGate {
         // ── Hard Rule C: Normal Validation Passed ──
         } else {
             rationale = String.format(
-                    "✅ [하드 게이트 통과] AI 추론 결과(%s)와 FastDTW 프랙탈 검증(승률 %.0f%%, 유사도 %.1f%%)이 수학적 앙상블 승인 기준을 충족했습니다.",
+                    "✅ [AETHER 리스크 가디언 승인] AI 추론 결과(%s)와 8,000개 캔들 빅데이터 프랙탈 검증(승률 %.0f%%, 일치율 %.1f%%)이 상호 일치하여 최종 승인되었습니다.",
                     finalVerdict, winRate * 100.0, simScore * 100.0
             );
         }

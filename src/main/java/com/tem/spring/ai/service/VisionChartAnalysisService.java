@@ -143,7 +143,7 @@ public class VisionChartAnalysisService {
                 fractal.getPatternName(),
                 "20일 이동평균선(SMA20) 반등 지지",
                 "거래소 실시간 수치 API 직결 검증",
-                "FastDTW 결정론적 앙상블 하드 게이트 승인"
+                "AETHER 듀얼 리스크 가디언 검증 승인"
         );
 
         long duration = System.currentTimeMillis() - startTime;
@@ -158,7 +158,7 @@ public class VisionChartAnalysisService {
                 .supportPrice(validTargets.getSupportPrice())
                 .resistancePrice(validTargets.getResistancePrice())
                 .currentPrice(validTargets.getCurrentPrice())
-                .modelUsed("Python FastDTW + Exchange API + Deterministic Ensemble Gate")
+                .modelUsed("AETHER Intelligence OS v2.5 (Vision + Fractal Engine™ + Risk Shield™)")
                 .processingTimeMs(duration)
                 .analyzedAt(LocalDateTime.now())
                 .build();
