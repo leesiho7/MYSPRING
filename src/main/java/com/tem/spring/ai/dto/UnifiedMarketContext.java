@@ -58,14 +58,14 @@ public class UnifiedMarketContext {
         sb.append(String.format("    <strike_direction>%s</strike_direction>\n", strikeDirection));
         sb.append("  </price_action>\n");
 
-        sb.append("  <technical_indicators engine=\"ta4j\">\n");
+        sb.append("  <technical_indicators engine=\"AETHER-Quant\">\n");
         sb.append(String.format("    <rsi period=\"14\" category=\"%s\">%.1f</rsi>\n", rsiCategory != null ? rsiCategory : "Neutral", rsi));
         sb.append(String.format("    <macd_status>%s</macd_status>\n", macdStatus != null ? macdStatus : "N/A"));
         sb.append(String.format("    <bollinger_band_status>%s</bollinger_band_status>\n", bollingerStatus != null ? bollingerStatus : "N/A"));
         sb.append(String.format("    <quant_score scale=\"-1.0_to_1.0\">%+.2f</quant_score>\n", quantScore));
         sb.append("  </technical_indicators>\n");
 
-        sb.append("  <fractal_intelligence engine=\"FastDTW-8000\">\n");
+        sb.append("  <fractal_intelligence engine=\"AETHER-Fractal\">\n");
         sb.append(String.format("    <matched_pattern>%s</matched_pattern>\n", matchedFractalName != null ? matchedFractalName : "표준 프랙탈 반등 파동"));
         sb.append(String.format("    <similarity_score>%.1f%%</similarity_score>\n", similarityPct));
         sb.append(String.format("    <historical_5bar_win_rate>%.1f%%</historical_5bar_win_rate>\n", historicalWinRatePct));
