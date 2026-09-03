@@ -21,6 +21,7 @@ public class AiResearchChatRequest {
     private String amount;
     private String horizon;
     private String mode; // "INSIGHT", "GUIDE", "CODING"
+    private String language; // "ko", "en", "zh", "cn"
     private String imageUrl; // Base64 data URL or HTTP image URL for Chart Vision
     private List<ChatMessageDto> history;
 

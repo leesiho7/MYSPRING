@@ -25,6 +25,7 @@ public class GlobalExceptionHandler {
     public static class ErrorResponse {
         LocalDateTime timestamp;
         int status;
+        String code;
         String error;
         String message;
         Map<String, String> details;
@@ -43,6 +44,7 @@ public class GlobalExceptionHandler {
                 ErrorResponse.builder()
                         .timestamp(LocalDateTime.now())
                         .status(HttpStatus.BAD_REQUEST.value())
+                        .code("INVALID_ARGUMENT")
                         .error("Validation Error")
                         .message("요청 파라미터 유효성 검증에 실패했습니다.")
                         .details(errors)
@@ -57,13 +59,9 @@ public class GlobalExceptionHandler {
                 ErrorResponse.builder()
                         .timestamp(LocalDateTime.now())
                         .status(HttpStatus.TOO_MANY_REQUESTS.value())
+                        .code("RATE_LIMIT_EXCEEDED")
                         .error("Too Many Requests (Rate Limit Exceeded)")
                         .message(ex.getMessage())
-                        .details(Map.of(
-                                "dailyLimit", String.valueOf(ex.getLimit()),
-                                "remainingQuota", String.valueOf(ex.getRemaining()),
-                                "resetSchedule", "매일 자정 00:00 KST"
-                        ))
                         .build()
         );
     }
@@ -75,6 +73,7 @@ public class GlobalExceptionHandler {
                 ErrorResponse.builder()
                         .timestamp(LocalDateTime.now())
                         .status(HttpStatus.BAD_REQUEST.value())
+                        .code("BAD_REQUEST")
                         .error("Bad Request")
                         .message(sanitizeMessage(ex.getMessage()))
                         .build()
@@ -83,13 +82,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        log.error("[Security] Unhandled internal exception occurred", ex);
+        log.error("[Security] Unhandled internal exception occurred (obfuscated for client): {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ErrorResponse.builder()
                         .timestamp(LocalDateTime.now())
                         .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                        .error("Internal Server Error")
-                        .message("서버 내부 처리 중 오류가 발생했습니다. (보안을 위해 상세 로그는 보호됩니다)")
+                        .code("ENGINE_TEMPORARY_BUSY")
+                        .error("Institutional Engine Service Unavailable")
+                        .message("AETHER 기관급 퀀트 엔진 연산 세션이 일시적으로 집중되었습니다. 잠시 후 다시 시도해 주세요.")
                         .build()
         );
     }

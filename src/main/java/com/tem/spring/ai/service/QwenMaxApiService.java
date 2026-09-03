@@ -126,6 +126,7 @@ public class QwenMaxApiService {
             requestBody.put("model", targetModel);
             requestBody.put("messages", messages);
             requestBody.put("temperature", temperature);
+            requestBody.put("top_p", 0.1);
             requestBody.put("max_tokens", 1500);
 
             String responseBody = retry.executeSupplier(() ->
@@ -198,6 +199,7 @@ public class QwenMaxApiService {
             requestBody.put("model", targetModel);
             requestBody.put("messages", messages);
             requestBody.put("temperature", temperature);
+            requestBody.put("top_p", 0.1);
             requestBody.put("max_tokens", 1800);
             requestBody.put("stream", true);
 

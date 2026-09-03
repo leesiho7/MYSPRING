@@ -34,4 +34,11 @@ public class RichNewsItemDto {
     private String actionGuideKo;
     private String actionGuideEn;
     private String actionGuideCn;
+
+    // ── [Deep Causal Chain & Geopolitical Root Cause Analysis] ──
+    private String rootCauseKo;
+    private String rootCauseEn;
+    private String causalChainKo;
+    private String causalChainEn;
+    private String marketImpactDetail;
 }

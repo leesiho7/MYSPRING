@@ -34,6 +34,7 @@ public class TradingSystemController {
     private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.repository.UserQueryRepository> userQueryRepositoryProvider;
     private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.service.ProactiveNewsWarmupBatchService> warmupBatchServiceProvider;
     private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.service.BrightDataNewsScraperService> brightDataNewsScraperServiceProvider;
+    private final com.tem.spring.ai.service.SmartSessionMemoryService smartMemoryService;
     private final com.tem.spring.gamification.service.StreakRewardClaimService streakRewardClaimService;
 
     /**
@@ -196,6 +197,40 @@ public class TradingSystemController {
 
         researchChatService.streamResearchChat(request, emitter);
         return emitter;
+    }
+
+    /**
+     * 7-2. [엔트로픽 기법 4] 세션 메모리 완전 초기화 (State Clear) API
+     */
+    @PostMapping("/ai/research-chat/memory/reset")
+    public ResponseEntity<java.util.Map<String, Object>> resetSessionMemory(
+            @RequestBody java.util.Map<String, String> payload) {
+        String convId = payload != null ? payload.get("conversationId") : null;
+        boolean success = smartMemoryService != null && smartMemoryService.clearMemory(convId);
+        return ResponseEntity.ok(java.util.Map.of("conversationId", convId != null ? convId : "", "reset", success));
+    }
+
+    /**
+     * 7-3. [엔트로픽 기법 4] 직전 1턴 롤백 안전장치 (State Rollback) API
+     */
+    @PostMapping("/ai/research-chat/memory/rollback")
+    public ResponseEntity<java.util.Map<String, Object>> rollbackSessionMemory(
+            @RequestBody java.util.Map<String, String> payload) {
+        String convId = payload != null ? payload.get("conversationId") : null;
+        boolean success = smartMemoryService != null && smartMemoryService.rollbackLastTurn(convId);
+        return ResponseEntity.ok(java.util.Map.of("conversationId", convId != null ? convId : "", "rolledBack", success));
+    }
+
+    /**
+     * 7-4. 세션 메모리 상태 디버깅 및 진단 조회 API
+     */
+    @GetMapping("/ai/research-chat/memory/status")
+    public ResponseEntity<java.util.Map<String, Object>> getSessionMemoryStatus(
+            @RequestParam(defaultValue = "GLOBAL_GUEST") String conversationId) {
+        if (smartMemoryService == null) {
+            return ResponseEntity.ok(java.util.Map.of("active", false, "error", "SmartSessionMemoryService not available"));
+        }
+        return ResponseEntity.ok(smartMemoryService.getSessionStatus(conversationId));
     }
 
     /**

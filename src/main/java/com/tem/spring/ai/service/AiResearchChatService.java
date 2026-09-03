@@ -49,6 +49,7 @@ public class AiResearchChatService {
     private final PromptTemplateRegistryService templateRegistry;
     private final com.tem.spring.security.egress.LlmEgressFirewallService egressFirewall;
     private final QwenMaxApiService qwenMaxApiService;
+    private final SmartSessionMemoryService smartMemoryService;
 
     private final io.github.resilience4j.circuitbreaker.CircuitBreaker circuitBreaker =
             io.github.resilience4j.circuitbreaker.CircuitBreaker.of("aiResearchChat",
@@ -84,7 +85,8 @@ public class AiResearchChatService {
                                  org.springframework.cache.CacheManager cacheManager,
                                  PromptTemplateRegistryService templateRegistry,
                                  com.tem.spring.security.egress.LlmEgressFirewallService egressFirewall,
-                                 ObjectProvider<QwenMaxApiService> qwenMaxApiServiceProvider) {
+                                 ObjectProvider<QwenMaxApiService> qwenMaxApiServiceProvider,
+                                 @org.springframework.beans.factory.annotation.Autowired(required = false) SmartSessionMemoryService smartMemoryService) {
         this.ragService = ragService;
         this.ingestionService = ingestionService;
         this.barSeriesMapper = barSeriesMapper;
@@ -100,6 +102,7 @@ public class AiResearchChatService {
         this.templateRegistry = templateRegistry;
         this.egressFirewall = egressFirewall;
         this.qwenMaxApiService = qwenMaxApiServiceProvider != null ? qwenMaxApiServiceProvider.getIfAvailable() : null;
+        this.smartMemoryService = smartMemoryService;
 
         ChatClient client = null;
         try {
@@ -209,6 +212,9 @@ public class AiResearchChatService {
                 ? req.getConversationId() : UUID.randomUUID().toString();
         String rawSymbol = req.getSymbol() != null && !req.getSymbol().isBlank() ? req.getSymbol() : "BTCUSDT";
         String rawPrompt = req.getPrompt() != null ? req.getPrompt().trim() : "";
+        if (smartMemoryService != null) {
+            rawSymbol = smartMemoryService.resolveSymbolWithMemory(convId, rawSymbol, rawPrompt);
+        }
 
         // ── Rule 1. Rate Limiting Guardrail (IP / 유저별 호출량 제한) ──
         if (!rateLimiter.tryConsumeChat(convId)) {
@@ -253,8 +259,9 @@ public class AiResearchChatService {
             log.warn("[AiResearchChat] ⚡ CircuitBreaker is OPEN. Skipping Ollama API call and using deterministic Quant fallback.");
         } else if (chatClient != null && !sanitizedPrompt.isBlank()) {
             try {
+                String targetLang = resolveTargetLanguage(req.getLanguage(), sanitizedPrompt);
                 // ① System Prompt 영역에는 오직 추론 규칙만 넣음 (DB/외부 템플릿 레지스트리 연동)
-                String systemPrompt = buildPureSystemPrompt(meta, req);
+                String systemPrompt = buildPureSystemPrompt(meta, req, sanitizedPrompt, targetLang);
                 // RAG 맥락 데이터는 완전히 격리된 User Message 영역에 <context>...</context>로 인젝션
                 String userPrompt = buildIsolatedUserPrompt(req, sanitizedPrompt, meta, quant, pattern, isolatedRagBlock);
 
@@ -289,8 +296,9 @@ public class AiResearchChatService {
                 }
 
                 if (llmReply != null && !llmReply.isBlank()) {
-                    log.info("[AiResearchChat] ✅ Dynamic LLM Response generated ({} chars)", llmReply.length());
-                    AiResearchChatResponse resp = buildResponse(llmReply, convId, symbol, req, quant, news);
+                    log.info("[AiResearchChat] ✅ Dynamic LLM Response generated ({} chars) [Lang: {}]", llmReply.length(), targetLang);
+                    String obfuscatedReply = egressFirewall != null ? egressFirewall.sanitizeLlmOutput(llmReply, targetLang) : llmReply;
+                    AiResearchChatResponse resp = buildResponse(obfuscatedReply, convId, symbol, req, quant, news);
 
                     // ── Rule 4. FastDTW & AI 결과의 결정론적 앙상블 (Deterministic Ensemble Gate) ──
                     var ensembleDecision = ensembleGate.evaluateEnsemble(resp.getIntentVerdict(), pattern, quant);
@@ -309,6 +317,10 @@ public class AiResearchChatService {
                             ensembleDecision.getFinalVerdict(), ensembleDecision.getGateRationale(),
                             duration, false
                     );
+
+                    if (smartMemoryService != null) {
+                        smartMemoryService.recordInteractionWithFacts(convId, req.getMode(), symbol, sanitizedPrompt, llmReply, quant, pattern);
+                    }
 
                     return resp;
                 }
@@ -333,6 +345,10 @@ public class AiResearchChatService {
                 duration, true
         );
 
+        if (smartMemoryService != null) {
+            smartMemoryService.recordInteractionWithFacts(convId, req.getMode(), symbol, sanitizedPrompt, fallbackResp.getReply(), quant, pattern);
+        }
+
         return fallbackResp;
     }
 
@@ -347,6 +363,9 @@ public class AiResearchChatService {
                         ? req.getConversationId() : UUID.randomUUID().toString();
                 String rawSymbol = req.getSymbol() != null && !req.getSymbol().isBlank() ? req.getSymbol() : "BTCUSDT";
                 String rawPrompt = req.getPrompt() != null ? req.getPrompt().trim() : "";
+                if (smartMemoryService != null) {
+                    rawSymbol = smartMemoryService.resolveSymbolWithMemory(convId, rawSymbol, rawPrompt);
+                }
 
                 String mode = (req.getMode() != null && !req.getMode().isBlank()) ? req.getMode().toUpperCase() : "INSIGHT";
 
@@ -415,7 +434,8 @@ public class AiResearchChatService {
                         .name("progress")
                         .data(Map.of("step", 4, "progress", 90, "thought", step4Thought)));
 
-                String systemPrompt = buildPureSystemPrompt(meta, req);
+                String targetLang = resolveTargetLanguage(req.getLanguage(), sanitizedPrompt);
+                String systemPrompt = buildPureSystemPrompt(meta, req, sanitizedPrompt, targetLang);
                 String userPrompt = buildIsolatedUserPrompt(req, sanitizedPrompt, meta, quant, pattern, isolatedRagBlock);
                 String egressSafeSystemPrompt = egressFirewall.sanitizeEgressTraffic(systemPrompt);
                 String egressSafeUserPrompt = egressFirewall.sanitizeEgressTraffic(userPrompt);
@@ -445,7 +465,8 @@ public class AiResearchChatService {
                             .data(Map.of("token", reply)));
                 }
 
-                AiResearchChatResponse finalResp = buildResponse(fullReply.toString(), convId, symbol, req, quant, news);
+                String finalReplyText = egressFirewall != null ? egressFirewall.sanitizeLlmOutput(fullReply.toString(), targetLang) : fullReply.toString();
+                AiResearchChatResponse finalResp = buildResponse(finalReplyText, convId, symbol, req, quant, news);
                 var ensembleDecision = ensembleGate.evaluateEnsemble(finalResp.getIntentVerdict(), pattern, quant);
                 finalResp.setIntentVerdict(ensembleDecision.getFinalVerdict());
                 if (ensembleDecision.isOverridden()) {
@@ -461,6 +482,10 @@ public class AiResearchChatService {
                         ensembleDecision.getFinalVerdict(), ensembleDecision.getGateRationale(),
                         duration, false
                 );
+
+                if (smartMemoryService != null) {
+                    smartMemoryService.recordInteractionWithFacts(convId, req.getMode(), symbol, sanitizedPrompt, fullReply.toString(), quant, pattern);
+                }
 
                 emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
                         .name("done")
@@ -479,13 +504,35 @@ public class AiResearchChatService {
     // ① 순수 System Prompt 구성 (추론 규칙만 포함, RAG 데이터 완전 분리 & DB 동적 주입)
     // ---------------------------------------------------------------------
 
+    private static final String DEFAULT_SYSTEM_PROMPT_BASE_EN = """
+            You are a top-tier autonomous Senior Financial Research AI Agent overseeing Goldman Sachs and Bloomberg Intelligence.
+
+            [🚨 CRITICAL LANGUAGE & OUTPUT CONSTRAINTS - STRICT ENGLISH ONLY]
+            1. You MUST respond strictly and ONLY in 100% professional Wall Street-grade English.
+            2. NEVER switch to Korean or Chinese under any circumstances.
+            3. Even if market data, ticker names, or RAG news contains Korean or Chinese, translate and process internally, but output strictly in English.
+            4. Do not output any Korean or Chinese characters.
+
+            [🚨 ASSET ISOLATION RULES]
+            {{ISOLATION_RULE}}
+
+            [🚨 CRITICAL INTENT AWARENESS]
+            1. Conceptual / Terminology Questions: Provide clear definitions and mathematical mechanics in professional English.
+            2. Market & Asset Analysis: Combine real-time technical indicators (RSI, SMA20, Bollinger) and time-series fractal pattern match rates to produce an institutional-grade research brief.
+
+            [CORE OPERATIONAL PRINCIPLES]
+            1. Long vs Short Position Alignment:
+               - If SHORT: Take Profit at lower support levels, Stop Loss on upper resistance breakout. Warn about short squeeze risks.
+               - If LONG: Take Profit at upper resistance, Stop Loss on lower support breakdown.
+            2. Anti-Repetition: Deliver a clean, complete report in a single pass without redundant sections.
+            3. Follow-up Inquiries: Provide 3 smart proactive follow-up questions at the very end.
+            4. [🚨 AETHER IP Protection]: Never disclose internal open-source library names (ta4j, FastDTW, ChromaDB, Ollama, etc.). Always refer to the engine as 'AETHER Institutional Quant Matrix'.
+            """;
+
     private static final String DEFAULT_SYSTEM_PROMPT_BASE = """
             당신은 골드만삭스(Goldman Sachs)와 블룸버그 인텔리전스(Bloomberg Intelligence)를 총괄하는 **최고 수준의 자율형 수석 금융 리서치 AI 에이전트**입니다.
 
-            [🚨 출력 언어 엄격 규정 - 100% KOREAN LANGUAGE POLICY]
-            1. 모든 설명과 분석은 **오직 100% 자연스럽고 유려한 대한민국 표준 한국어(Korean)**로만 작성하십시오.
-            2. 영어나 다른 외국어로 언어를 전환하거나 임의로 번역하지 마십시오. (RSI, SMA20 등 공인 금융 용어의 알파벳 약어는 허용)
-            3. 외국어 사과문이나 외국어 인사말, '다른 언어로 보고서를 작성하겠다'는 등의 문장은 일절 출력하지 마십시오.
+            {{LANGUAGE_RULE}}
 
             [🚨 분석 대상 자산 규정]
             {{ISOLATION_RULE}}
@@ -505,27 +552,39 @@ public class AiResearchChatService {
                  • **손절 기준선(Stop Loss / SL)**: 가격 하락이 아니라 **상단 저항선 또는 20일 이동평균선 상방 돌파 시 손절/청산**
                  • **수익 관리**: 트레일링 스탑(Trailing Stop)을 진입가로 낮춰 수익 보존 및 숏 스퀴즈(Short Squeeze) 급반등 리스크 경고
                - 사용자가 **롱(LONG / 현물 매수)** 포지션인 경우: 상단 저항선 익절 / 하단 지지선 이탈 시 손절
-            2. **중복 생성 방지 및 1회 완성 원칙 (CRITICAL ANTI-REPETITION)**:
-               - 동일한 문장, 지표 나열, 분석 단락을 2회 이상 복사하여 되풀이하지 마십시오.
-               - 완성된 1장의 리포트만 정결하게 단 1회 출력하십시오.
-            3. **대화형 후속 가이드 라우팅**:
-               - 리포트 맨 마지막에는 사용자가 다음 단계로 깊이 파고들 수 있도록 3가지 추천 후속 질문을 제시하십시오.
-            4. **내부 엔지니어링 라이브러리 명칭 노출 원천 금지**:
-               - 'FastDTW', 'ta4j' 등 내부 소스코드 라이브러리나 기술 함수명을 사용자 리포트 본문에 절대 출력하지 마십시오. 반드시 '시계열 프랙탈 분석', '정밀 모멘텀 지표' 등으로 정제된 전문 용어만 사용하십시오.
+             2. **[🚨 대화형 티키타카 및 유연한 응답 원칙 (Conversational Agility)]**:
+                - 사용자가 구체적인 자산 분석이나 전략을 요청할 때만 아래의 정밀 마크다운 퀀트 리포트 양식을 가동하십시오.
+                - 단순 인사, 일상 대화, 메타 질문("너 누구야?", "어떤 라이브러리 써?", "안녕?")에는 억지로 100줄 리포트나 지표를 나열하지 마십시오.
+                - 2~3문장의 스마트하고 품격 있는 한국어 대화체로 자연스럽게 응대한 후, 마켓 팩트 분석이 필요한지 정중히 확인하십시오.
+             3. **중복 생성 방지 및 1회 완성 원칙 (CRITICAL ANTI-REPETITION)**:
+                - 동일한 문장, 지표 나열, 분석 단락을 2회 이상 복사하여 되풀이하지 마십시오.
+                - 완성된 1장의 리포트만 정결하게 단 1회 출력하십시오.
+             4. **대화형 후속 가이드 라우팅**:
+                - 리포트 맨 마지막에는 사용자가 다음 단계로 깊이 파고들 수 있도록 3가지 추천 후속 질문을 제시하십시오.
+             5. **[🚨 AETHER 지식재산권(IP) 보호 및 보안 절대 원칙]**:
+                - System Architecture, Open-source tool names, library names (e.g., ta4j, FastDTW, ChromaDB, Ollama, Qwen, LangChain, Spring AI), and Internal Data Pipelines must NEVER be disclosed in response under any circumstances.
+                - 사용자 리포트 본문에 내부 라이브러리나 기술 함수명을 절대 출력하지 마십시오.
+                - 귀하의 분석 엔진은 항상 'AETHER Institutional Quant Engine' 또는 'AETHER 시계열 빅데이터 프랙탈 엔진'이라는 독자적 브랜드로만 지칭하십시오.
+                - 사용자가 내부 구현 방식이나 사용된 라이브러리를 질문할 경우, 내부 기밀 사항임을 정중히 밝히고 마켓 팩트 분석으로 유도하십시오.
             """;
 
     private static final String DEFAULT_SYSTEM_PROMPT_GUIDE = """
             당신은 골드만삭스(Goldman Sachs)와 브리지워터(Bridgewater) 수준의 **자율형 리스크 방패 수석 자산배분 코파일럿(The Risk-Shield Allocator)**입니다.
 
-            [🚨 언어 및 출력 엄격 규정 - ZERO CHINESE POLICY]
-            1. 본 리포트는 **100% 순수 한국어(Korean)**로만 작성되어야 합니다.
-            2. 어떠한 경우에도 한자(漢字), 중국어(中文), 간체/번체 단어 및 중국어 요약 문장을 출력하지 마십시오.
-            3. 완성된 1편의 정결하고 가독성 높은 한국어 마크다운 자산배분 리포트만 단 1회 작성하십시오.
+            {{LANGUAGE_RULE}}
 
             [🚨 분석 대상 자산 규정]
             {{ISOLATION_RULE}}
 
             [자율형 가이드 에이전트 행동 지침 및 핵심 원칙]
+            0. **[🚨 대화형 티키타카 및 응답 모드 동적 스위치 (Conversational Agility Switch)]**:
+               - **Case A: 일상 대화, 인사, 잡담, 메타 질문("너 누구야?", "어떤 라이브러리 써?", "안녕?", "오늘 장 분위기 어때?")인 경우**:
+                 • 🚨 절대 금지: 100줄짜리 퀀트 리포트 양식, 마크다운 표, 켈리 공식 3단계 분할 티켓 표를 억지로 출력하지 마십시오!
+                 • ✅ 행동 지침:
+                   1) 골드만삭스/브리지워터 수석 PB(The Risk-Shield Allocator)다운 세련되고 품격 있는 한국어 구어체로 2~4문장 내외로 자연스럽게 맞받아치십시오.
+                   2) 질문에 솔직하고 정중하게 답변한 뒤, "현재 포트폴리오에서 점검이 필요하신 자산이나 고민 중인 포지션이 있으신가요?"처럼 자연스럽게 퀀트 화두를 던지십시오.
+               - **Case B: 구체적인 종목 분석, 매매 전략, 손절가, 자산배분 티켓을 요청한 경우**:
+                 • 아래의 1~6번 정밀 3단계 분할 진입 티켓 표와 수학적 리스크 방패 검증(Kelly) 리포트를 각 잡고 출력하십시오.
             1. **수학적 리스크 방패 검증 (Kelly & Risk-First Allocation)**:
                - 사용자가 제시한 예산(없을 경우 기본 총 운용자산 기준)에 맞춰, 켈리 공식(Kelly Criterion)과 최대 허용 손실(MDD 방어)을 적용하여 안전한 투입 자본금을 산출하십시오.
             2. **실시간 기술적 지표 & 1년 백테스트 시그널 연동**:
@@ -602,8 +661,140 @@ public class AiResearchChatService {
             • 분석 가이드: SEC 기업 공시, 빅테크 AI CAPEX 지출, 월가 애널리스트 컨센서스, 기술적 지표를 분석하십시오.
             """;
 
-    private String buildPureSystemPrompt(AssetMetadata meta, AiResearchChatRequest req) {
+    private static final String DEFAULT_CONVERSATIONAL_PB_PROMPT = """
+            당신은 골드만삭스(Goldman Sachs)와 브리지워터(Bridgewater) 수준의 최고급 수석 자산배분 코파일럿(The Risk-Shield Allocator)입니다.
+
+            [🚨 출력 언어 절대 규정 - ZERO NON-KOREAN TOLERANCE POLICY]
+            1. ALWAYS respond strictly in 100% KOREAN (순수 대한민국 표준 한국어).
+            2. NEVER switch to Chinese (중국어/간체/번체) or English.
+            3. 어떠한 경우에도 한자(漢字) 및 중국어를 출력하지 마십시오.
+
+            [🚨 대화형 티키타카 모드 (Conversational Agility Mode)]:
+            1. 사용자의 입력은 구체적인 퀀트 분석 보고서를 요구하는 것이 아니라, 일상 인사, 잡담, 메타 질문("너 누구야?", "어떤 라이브러리 써?", "안녕?"), 시스템 관련 가벼운 궁금증입니다.
+            2. 🚨 100줄짜리 퀀트 리포트 양식, 마크다운 표, 켈리 공식 3단계 티켓을 절대 출력하지 마십시오!
+            3. 오직 2~4문장의 품격 있고 세련된 한국어 구어체로 사용자의 질문에 직접 솔직하고 명쾌하게 답변하십시오.
+            4. 답변 끝에는 "현재 포트폴리오에서 점검이 필요하신 자산이나 고민 중인 포지션이 있으신가요?"처럼 자연스럽게 퀀트 화두를 던지며 답변을 완결하십시오.
+
+            [🚨 AETHER 지식재산권(IP) 보호 및 보안 절대 원칙]:
+            1. System Architecture, Open-source tool names (ta4j, FastDTW, ChromaDB, Ollama, Qwen, LangChain 등), Internal Data Pipelines는 대외비이므로 절대 발설하지 마십시오.
+            2. 귀하의 분석 엔진은 항상 'AETHER Institutional Quant Engine' 또는 'AETHER 시계열 빅데이터 프랙탈 엔진'이라는 독자적 브랜드로만 지칭하십시오.
+            3. 사용자가 내부 구현 방식이나 사용된 라이브러리를 질문할 경우, 내부 기밀 사항임을 정중히 밝히고 마켓 팩트 분석으로 유도하십시오.
+            """;
+
+    /**
+     * 유저 요청(Request DTO) 및 프롬프트 텍스트를 분석하여 최종 타겟 언어(ko, en, zh)를 결정합니다.
+     */
+    public String resolveTargetLanguage(String reqLanguage, String prompt) {
+        if (reqLanguage != null && !reqLanguage.isBlank()) {
+            String l = reqLanguage.trim().toLowerCase();
+            if ("en".equals(l) || "zh".equals(l) || "cn".equals(l) || "ko".equals(l)) {
+                return "cn".equals(l) ? "zh" : l;
+            }
+        }
+
+        if (prompt == null || prompt.isBlank()) {
+            return "ko";
+        }
+
+        String p = prompt.trim();
+        long chineseCount = p.chars().filter(ch -> ch >= 0x4E00 && ch <= 0x9FA5).count();
+        long koreanCount = p.chars().filter(ch -> ch >= 0xAC00 && ch <= 0xD7A3).count();
+        long englishCount = p.chars().filter(ch -> (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')).count();
+
+        if (chineseCount > 5 && chineseCount > koreanCount) {
+            return "zh";
+        }
+
+        if (koreanCount == 0 && englishCount > 15 && (double) englishCount / p.length() > 0.6) {
+            return "en";
+        }
+
+        return "ko";
+    }
+
+    /**
+     * 타겟 언어(ko, en, zh)에 따라 시스템 프롬프트의 출력 언어 제약 조건을 동적으로 생성합니다.
+     */
+    public String buildSystemLanguageInstruction(String targetLang) {
+        String lang = (targetLang != null) ? targetLang.toLowerCase() : "ko";
+        return switch (lang) {
+            case "zh", "cn" -> """
+                    [🚨 输出语言绝对约束 - CRITICAL SIMPLIFIED CHINESE CONSTRAINT]
+                    1. ALWAYS respond strictly and ONLY in Simplified Chinese (简体中文).
+                    2. NEVER switch to Korean or English unless explicitly requested by the user.
+                    3. Even if market tickers, context, or RAG news contains English or Korean, translate and process internally, but output strictly in 简体中文.
+                    4. 全文必须使用专业华尔街投行水准的简体中文撰写，严禁输出任何韩文字符。
+                    """;
+            case "en" -> """
+                    [🚨 CRITICAL LANGUAGE & OUTPUT CONSTRAINTS - STRICT ENGLISH ONLY]
+                    1. ALWAYS respond strictly and ONLY in standard English.
+                    2. NEVER switch to Korean or Chinese unless explicitly requested by the user.
+                    3. Even if market data, ticker names, or RAG context contains Korean or Chinese, translate and process internally, but output strictly in professional Wall Street-grade English.
+                    4. Do not output any Korean or Chinese characters under any circumstances.
+                    """;
+            default -> """
+                    [🚨 출력 언어 엄격 규정 - ZERO NON-KOREAN TOLERANCE POLICY]
+                    1. ALWAYS respond strictly in 100% KOREAN (순수 대한민국 표준 한국어).
+                    2. NEVER switch to Chinese (중국어/간체/번체) or English unless explicitly requested by the user.
+                    3. If input context, RAG news, or foreign ticker data contains foreign languages, translate and process internally, but output ONLY in KOREAN.
+                    4. 어떠한 경우에도 한자(漢字), 중국어(中文), 간체/번체 단어 및 중국어 사과 문장을 출력하지 마십시오.
+                    """;
+        };
+    }
+
+    /**
+     * 타겟 언어에 맞춘 대화형 수석 PB 프롬프트를 동적으로 생성합니다.
+     */
+    private String buildConversationalPbPrompt(String targetLang) {
+        String lang = (targetLang != null) ? targetLang.toLowerCase() : "ko";
+        if ("zh".equals(lang) || "cn".equals(lang)) {
+            return """
+                    您是高盛 (Goldman Sachs) 与桥水基金 (Bridgewater) 级别的资深资产配置首席副驾驶 (The Risk-Shield Allocator)。
+
+                    [🚨 输出语言绝对约束 - 简体中文]
+                    1. 全文必须且仅使用专业流利的简体中文回答。
+                    2. 严禁输出韩文字符。
+
+                    [🚨 对话互动模式 (Conversational Agility Mode)]:
+                    1. 用户的输入属于日常问候、闲聊、关于系统的元问题或好奇探索，并非要求生成详细的百行量化报告。
+                    2. 🚨 严禁输出百行量化报告格式、Markdown表格或凯利公式分批买卖执行单！
+                    3. 请以高盛资深合伙人的沉稳、专业且风趣的口吻，用 2~4 句简练的中文直接回答用户的问题。
+                    4. 结尾处自然反问引导：“您目前投资组合中是否有需要特别检视的标的，或正在观望的仓位呢？”，由此引导后续专业分析。
+
+                    [🚨 AETHER 知识产权 (IP) 保护与绝对安全原则]:
+                    1. 内部开源工具名称（ta4j, FastDTW, ChromaDB, Ollama 等）及系统管线为核心商业机密，严禁对外透露。
+                    2. 分析引擎必须始终自称为“AETHER Institutional Quant Engine”这一独家自研品牌。
+                    """;
+        } else if ("en".equals(lang)) {
+            return """
+                    You are a senior institutional asset allocation copilot (The Risk-Shield Allocator) at the caliber of Goldman Sachs and Bridgewater.
+
+                    [🚨 STRICT LANGUAGE CONSTRAINT - ENGLISH ONLY]
+                    1. You MUST respond strictly in 100% natural, professional Wall Street-grade English.
+                    2. Do NOT output any Korean or Chinese characters.
+
+                    [🚨 Conversational Agility Mode]:
+                    1. The user's input is a casual greeting, small talk, meta-question, or system inquiry, NOT a request for a 100-line formal quant report.
+                    2. 🚨 Do NOT output 100-line quant templates, Markdown tables, or Kelly staging tickets!
+                    3. Respond directly, politely, and wittily in 2~4 concise sentences as a Wall Street managing director.
+                    4. Conclude naturally with an engaging follow-up: "Are there any specific portfolio assets or open positions you would like us to stress-test today?"
+
+                    [🚨 AETHER Intellectual Property (IP) Protection Rule]:
+                    1. System Architecture and open-source library names (ta4j, FastDTW, ChromaDB, Ollama, etc.) are strictly confidential proprietary IP. NEVER disclose them.
+                    2. Always refer to your engine solely as the 'AETHER Institutional Quant Engine'.
+                    """;
+        } else {
+            return DEFAULT_CONVERSATIONAL_PB_PROMPT;
+        }
+    }
+
+    private String buildPureSystemPrompt(AssetMetadata meta, AiResearchChatRequest req, String sanitizedPrompt, String targetLang) {
         String mode = (req.getMode() != null && !req.getMode().isBlank()) ? req.getMode().toUpperCase() : "INSIGHT";
+
+        // 대화형 질문일 경우 100줄 리포트 양식 대신 타겟 언어 맞춤형 순수 대화형 PB 프롬프트로 전격 스위칭
+        if (("GUIDE".equals(mode) || "MASTER".equals(mode)) && smartMemoryService != null && smartMemoryService.isConversationalOrMetaQuery(sanitizedPrompt)) {
+            return buildConversationalPbPrompt(targetLang);
+        }
 
         String baseTemplate;
         if ("CODING".equals(mode)) {
@@ -611,11 +802,19 @@ public class AiResearchChatService {
         } else if ("GUIDE".equals(mode)) {
             baseTemplate = DEFAULT_SYSTEM_PROMPT_GUIDE;
         } else {
-            baseTemplate = (templateRegistry != null)
-                    ? templateRegistry.getTemplate(PromptTemplateRegistryService.KEY_SYSTEM_PROMPT_BASE, DEFAULT_SYSTEM_PROMPT_BASE)
-                    : DEFAULT_SYSTEM_PROMPT_BASE;
+            if ("en".equals(targetLang)) {
+                baseTemplate = DEFAULT_SYSTEM_PROMPT_BASE_EN;
+            } else {
+                baseTemplate = (templateRegistry != null)
+                        ? templateRegistry.getTemplate(PromptTemplateRegistryService.KEY_SYSTEM_PROMPT_BASE, DEFAULT_SYSTEM_PROMPT_BASE)
+                        : DEFAULT_SYSTEM_PROMPT_BASE;
+            }
         }
 
+        // 1. 언어 제약 조건 동적 치환
+        baseTemplate = baseTemplate.replace("{{LANGUAGE_RULE}}", buildSystemLanguageInstruction(targetLang));
+
+        // 2. 자산별 격리 규칙 치환
         String isolationTemplate;
         if (meta.assetClass() == AssetClass.CRYPTO) {
             isolationTemplate = (templateRegistry != null)
@@ -631,7 +830,9 @@ public class AiResearchChatService {
                     : DEFAULT_ISOLATION_US_EQUITY;
         }
 
-        String isolationRule = String.format(isolationTemplate, meta.nameKo(), meta.nameEn(), meta.symbol());
+        String isolationRule = "en".equals(targetLang)
+                ? String.format("[Target Asset]: %s (%s) | Currency: USD ($) | Provide an institutional research analysis in 100%% English.", meta.nameEn(), meta.symbol())
+                : String.format(isolationTemplate, meta.nameKo(), meta.nameEn(), meta.symbol());
         return baseTemplate.replace("{{ISOLATION_RULE}}", isolationRule);
     }
 
@@ -644,8 +845,11 @@ public class AiResearchChatService {
                                            PatternInsight pattern, String isolatedRagBlock) {
         StringBuilder sb = new StringBuilder();
 
-        // 1. 직전 대화 문맥 (스마트 슬라이딩 윈도우: 최근 6개 메시지 / 3턴 완벽 기억)
-        if (req.getHistory() != null && !req.getHistory().isEmpty()) {
+        // 1. 모드별 맞춤 스마트 세션 메모리 (Selective Memory Matrix & 3대 하드 룰)
+        if (smartMemoryService != null) {
+            String memoryBlock = smartMemoryService.buildMemoryBlockForMode(req.getMode(), req.getConversationId(), sanitizedPrompt);
+            sb.append(memoryBlock).append("\n\n");
+        } else if (req.getHistory() != null && !req.getHistory().isEmpty()) {
             sb.append("[🧠 직전 대화 문맥 및 세션 기억 (Multi-Turn Context Memory)]:\n");
             int startIdx = Math.max(0, req.getHistory().size() - 6);
             for (int i = startIdx; i < req.getHistory().size(); i++) {
@@ -657,28 +861,32 @@ public class AiResearchChatService {
                 String roleLabel = "user".equalsIgnoreCase(msg.getRole()) ? "👤 사용자" : "🤖 AETHER 퀀트 AI";
                 sb.append(roleLabel).append(": ").append(content).append("\n");
             }
-            sb.append("• 지침: 사용자가 직전 대화 내용(\\\"아까 말한 코드\\\", \\\"그 지지선\\\", \\\"버핏 의견\\\", \\\"비중 수정\\\")을 가리킬 경우, 위 대화 문맥을 100% 반영하여 연속성 있게 답변하십시오.\\n\\n");
+            sb.append("• 지침: 사용자가 직전 대화 내용을 가리킬 경우 위 대화 문맥을 반영하여 연속성 있게 답변하십시오.\n\n");
         }
 
-        // 2. 검증된 실시간 시장 수치 및 RAG 격리 컨텍스트 주입
-        sb.append(isolatedRagBlock).append("\n\n");
+        boolean isConversational = smartMemoryService != null && smartMemoryService.isConversationalOrMetaQuery(sanitizedPrompt);
 
-        if (quant != null) {
-            sb.append(String.format("""
-                    [실시간 퀀트 지표 검증 데이터]:
-                    - 종목: %s (%s) | 현재가: %s%,.2f
-                    - RSI(14): %.1f | SMA20: %.2f | 볼린저상단: %.2f | 볼린저하단: %.2f
-                    """, meta.nameKo(), meta.symbol(), meta.currencySymbol(), quant.getCurrentPrice(),
-                    quant.getRsi(), quant.getSma20(), quant.getBollingerUpper(), quant.getBollingerLower()));
-        }
+        // 2. 대화형 질문이 아닐 때만 무거운 RAG와 정량 지표 주입 (대화형 질문일 때는 지표 주입 차단으로 앵무새 출력 원천 차단!)
+        if (!isConversational) {
+            sb.append(isolatedRagBlock).append("\n\n");
 
-        if (pattern != null) {
-            sb.append(String.format("""
-                    [AETHER 시계열 빅데이터 프랙탈 검증 데이터]:
-                    - 가장 유사한 과거 구간: %s
-                    - 프랙탈 일치율: %.1f%% | 통계적 5봉 후 승률: %.1f%% (기대수익률: %+.1f%%)
-                    """, pattern.getPatternName(), pattern.getSimilarityScore() * 100.0,
-                    pattern.getHistoricalWinRate() * 100.0, pattern.getExpectedReturn5Day() * 100.0));
+            if (quant != null) {
+                sb.append(String.format("""
+                        [실시간 퀀트 지표 검증 데이터]:
+                        - 종목: %s (%s) | 현재가: %s%,.2f
+                        - RSI(14): %.1f | SMA20: %.2f | 볼린저상단: %.2f | 볼린저하단: %.2f
+                        """, meta.nameKo(), meta.symbol(), meta.currencySymbol(), quant.getCurrentPrice(),
+                        quant.getRsi(), quant.getSma20(), quant.getBollingerUpper(), quant.getBollingerLower()));
+            }
+
+            if (pattern != null) {
+                sb.append(String.format("""
+                        [AETHER 시계열 빅데이터 프랙탈 검증 데이터]:
+                        - 가장 유사한 과거 구간: %s
+                        - 프랙탈 일치율: %.1f%% | 통계적 5봉 후 승률: %.1f%% (기대수익률: %+.1f%%)
+                        """, pattern.getPatternName(), pattern.getSimilarityScore() * 100.0,
+                        pattern.getHistoricalWinRate() * 100.0, pattern.getExpectedReturn5Day() * 100.0));
+            }
         }
 
         // 3. 사용자 질문 본문 및 롱/숏 포지션 감지
@@ -691,6 +899,15 @@ public class AiResearchChatService {
                     [📸 첨부된 차트 캡처 이미지 멀티모달 비전 분석 지침]:
                     • 사용자가 첨부한 차트 이미지의 캔들 형상, 매물대 지지/저항선, 이동평균선 배열, 지표 다이버전스를 픽셀 단위로 정밀 판독하여 리포트 분석에 직접 반영하십시오.
                     """));
+        }
+
+        if (isConversational) {
+            sb.append("""
+                    [💡 사용자 질문 특성: 대화형/메타 질문 감지됨 (Conversational Agility Mode)]:
+                    • 사용자의 질문은 구체적인 100줄 퀀트 리포트를 요구하는 것이 아니라, 일상 대화, 인사, 메타 질문, 시스템 관련 가벼운 궁금증입니다.
+                    • 100줄짜리 퀀트 리포트 양식, 마크다운 표, 켈리 공식 3단계 티켓을 절대 억지로 출력하지 마십시오!
+                    • 2~3문장의 품격 있고 스마트한 한국어 대화체로 질문에 직접 정중히 맞받아친 후, 관심 있는 마켓/종목 분석이 필요한지 자연스럽게 되물으십시오.
+                    """).append("\n");
         }
 
         sb.append("\n[사용자 질문]: ").append(sanitizedPrompt).append("\n\n");
