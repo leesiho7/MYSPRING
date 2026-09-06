@@ -218,7 +218,7 @@ public class SignalAggregatorService {
         boolean patternBearish = winRate < 0.45;
         boolean aiSuperBullish = qualScore > 0.30;
         if (quantBearish && patternBearish && aiSuperBullish) {
-            divergenceRisk = "🚨 [결정론적 하드 게이트] 차트 정량 지표와 FastDTW 승률이 하락세이나, AI 단독 과열 매수가 감지되어 환각 방지를 위해 HOLD로 강제 다운그레이드되었습니다.";
+            divergenceRisk = "🚨 [결정론적 하드 게이트] 차트 정량 지표와 AETHER 프랙탈 승률이 하락세이나, AI 단독 과열 매수가 감지되어 환각 방지를 위해 HOLD로 강제 다운그레이드되었습니다.";
             finalScore = 0.0;
         }
 
@@ -228,17 +228,17 @@ public class SignalAggregatorService {
             // ── [Hard Rule 2] 점수가 0.50 이상이어도 과거 프랙탈 패턴 승률이 40% 미만(또는 기대수익률 < 0)이면 STRONG_BUY 금지 ──
             if (winRate < 0.40 || expectedReturn < 0.0) {
                 finalAction = ActionType.HOLD;
-                reason = String.format("종합 스코어(%.2f)는 상승 구간이나, FastDTW 과거 프랙탈 승률(%.0f%%) 및 기대수익률(%.1f%%)이 하락 리스크를 경고하여 STRONG_BUY를 금지하고 HOLD로 하드 룰 수정함",
+                reason = String.format("종합 스코어(%.2f)는 상승 구간이나, AETHER 시계열 프랙탈 과거 승률(%.0f%%) 및 기대수익률(%.1f%%)이 하락 리스크를 경고하여 STRONG_BUY를 금지하고 HOLD로 하드 룰 수정함",
                         finalScore, winRate * 100, expectedReturn * 100);
             } else {
                 finalAction = ActionType.STRONG_BUY;
-                reason = String.format("ta4j(%.2f), 뉴스감성(%.2f), 과거패턴승률(%.0f%%) 3박자가 강력한 상승 추세를 지지함 [레짐: %s]",
+                reason = String.format("모멘텀지표(%.2f), 뉴스감성(%.2f), 과거패턴승률(%.0f%%) 3박자가 강력한 상승 추세를 지지함 [레짐: %s]",
                         quantScore, qualScore, winRate * 100, marketRegime);
             }
         } else if (finalScore >= 0.18) {
             if (winRate < 0.40 && expectedReturn < -0.02) {
                 finalAction = ActionType.HOLD;
-                reason = String.format("단기 매수 신호이나 FastDTW 프랙탈 과거 승률(%.0f%%) 저조로 인하여 안전을 위해 HOLD로 보수적 하향 조정 (종합점수: %.2f)", winRate * 100, finalScore);
+                reason = String.format("단기 매수 신호이나 AETHER 프랙탈 과거 승률(%.0f%%) 저조로 인하여 안전을 위해 HOLD로 보수적 하향 조정 (종합점수: %.2f)", winRate * 100, finalScore);
             } else {
                 finalAction = ActionType.BUY;
                 reason = String.format("정량 지표와 뉴스 모멘텀, 과거 프랙탈 패턴 기반 매수 우위 포지션 유지 (종합점수: %.2f)", finalScore);

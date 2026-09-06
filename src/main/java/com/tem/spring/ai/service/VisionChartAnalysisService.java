@@ -102,9 +102,9 @@ public class VisionChartAnalysisService {
                 
                 ---
                 
-                ### [2. PYTHON FASTDTW TIME-SERIES FRACTAL METRICS]
+                ### [2. AETHER TIME-SERIES FRACTAL METRICS]
                 - **역사상 최다 일치 구간**: `%s`
-                - **프랙탈 형상 일치율 (FastDTW)**: **%.1f%%**
+                - **프랙탈 형상 일치율**: **%.1f%%**
                 - **과거 5일 후 승률**: **%.0f%%** (평균 수익률: **%+.1f%%**)
                 - **패턴 분류**: **%s**
                 

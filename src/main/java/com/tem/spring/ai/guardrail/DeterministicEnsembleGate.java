@@ -55,7 +55,7 @@ public class DeterministicEnsembleGate {
             overridden = true;
             status = "DOWNGRADED_BY_FASTDTW_GATE";
             rationale = String.format(
-                    "🚨 [AETHER 리스크 가디언 조정] AI 시그널(%s) 대비 시계열 프랙탈 통계 승률(%.0f%%)이 안전 기준 미달(기대수익률 %+.1f%%)이므로 리스크 방어를 위해 'HOLD(관망)'로 다운그레이드했습니다.",
+                    "🚨 [AETHER 리스크 가디언 조정] AI 시그널(%s) 대비 시계열 프랙탈 통계 승률(%.0f%%)이 안전 기준 미달(기대수익률 %+.1f%%)이므로 리스크 방어를 위해 'HOLD(관망)'로 강제 다운그레이드했습니다.",
                     aiVerdict, winRate * 100.0, expReturn * 100.0
             );
             log.warn("[DeterministicEnsembleGate] 🛡️ AI Verdict '{}' overridden to 'HOLD' due to low FastDTW win rate: {}%",

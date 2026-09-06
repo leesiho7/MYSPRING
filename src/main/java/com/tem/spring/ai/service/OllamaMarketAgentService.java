@@ -102,7 +102,7 @@ public class OllamaMarketAgentService {
                         2. **과신 금지 및 무효화 기준 명시 (Anti-Overconfidence)**:
                            - '100% 확실', '무위험', '무조건 폭등' 등의 단정적 표현을 엄격히 금지합니다.
                         3. **수치 팩트 기반 추론 (Fact-Grounded)**:
-                           - FastDTW 승률, RSI, 1시간봉 기준가 괴리율, 거시 외신 팩트를 직접 인용하여 감성 점수를 -1.0 ~ +1.0 사이로 정밀하게 산출하십시오.
+                           - AETHER 시계열 프랙탈 승률, RSI, 1시간봉 기준가 괴리율, 거시 외신 팩트를 직접 인용하여 감성 점수를 -1.0 ~ +1.0 사이로 정밀하게 산출하십시오.
                         4. **지연시간 시차 보정 하드 룰 (Latency Lag Penalty)**:
                            - `<data_timestamps>`의 lag_penalty_applied가 true이거나 뉴스 시차가 15분 이상 지연된 경우, 해당 뉴스는 이미 가격에 선반영된 과거 소식이므로 뉴스 가중치를 50% 축소하고 실시간 차트 가격 움직임을 최우선 기준으로 판정하십시오.
                         5. **출력 형식**:
@@ -134,7 +134,7 @@ public class OllamaMarketAgentService {
 
                         [Good Case 2: 정량 지표 + 프랙탈 승률 동반 상승 추세]
                         <thought>
-                        1. 가설: FastDTW 승률 80% + RSI 58(안정적 상승) + 기준가 대비 +1.2% 상승.
+                        1. 가설: AETHER 프랙탈 승률 80% + RSI 58(안정적 상승) + 기준가 대비 +1.2% 상승.
                         2. 자아 검증: 거시 금리 발표 경계감이 있으나 온체인 기관 ETF 순유입이 하방을 견고히 지지함.
                         3. 최종 결론: BULLISH(+0.70) 부여 및 손절선 SMA20 설정.
                         </thought>
@@ -143,7 +143,7 @@ public class OllamaMarketAgentService {
                           "sentiment": "BULLISH",
                           "sentimentScore": 0.70,
                           "confidence": 0.92,
-                          "macroSummary": "FastDTW 과거 승률(80.0%)과 기관 현물 ETF 순유입이 일치하며 견고한 상승 모멘텀을 형성하고 있습니다.",
+                          "macroSummary": "AETHER 프랙탈 과거 승률(80.0%)과 기관 현물 ETF 순유입이 일치하며 견고한 상승 모멘텀을 형성하고 있습니다.",
                           "riskFactors": "SMA20 하향 돌파 시 단기 추세 무효화 및 거시 지표 발표 전 변동성 확대."
                         }
                         </json>
@@ -222,7 +222,7 @@ public class OllamaMarketAgentService {
 
     private QualitativeInsight fallbackInsight(String symbol, List<String> headlines, com.tem.spring.ai.dto.UnifiedMarketContext context) {
         String macroSummary = context != null
-                ? String.format("[AI 서킷 오픈: 정량 지표 단독 추론] FastDTW 프랙탈 일치율(%.1f%%, 승률 %.0f%%) 및 RSI(%.1f) 지표를 바탕으로 견고한 %s 흐름 전개.",
+                ? String.format("[AI 서킷 오픈: 정량 지표 단독 추론] AETHER 시계열 프랙탈 일치율(%.1f%%, 승률 %.0f%%) 및 RSI(%.1f) 지표를 바탕으로 견고한 %s 흐름 전개.",
                 context.getSimilarityPct(), context.getHistoricalWinRatePct(), context.getRsi(),
                 context.getStrikeDeltaPct() >= 0 ? "상승 모멘텀" : "지지선 탐색")
                 : "[AI 서킷 오픈: 정량 지표 단독 추론] 기관 현물 ETF 순유입세 지속 및 글로벌 매크로 유동성 확대로 견고한 상승 모멘텀 유지.";
