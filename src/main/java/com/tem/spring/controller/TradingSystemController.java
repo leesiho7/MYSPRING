@@ -36,6 +36,10 @@ public class TradingSystemController {
     private final org.springframework.beans.factory.ObjectProvider<com.tem.spring.ai.service.BrightDataNewsScraperService> brightDataNewsScraperServiceProvider;
     private final com.tem.spring.ai.service.SmartSessionMemoryService smartMemoryService;
     private final com.tem.spring.gamification.service.StreakRewardClaimService streakRewardClaimService;
+    private final com.tem.spring.ai.service.ChartPatternVectorService chartPatternService;
+    private final com.tem.spring.ai.service.AiDebateArenaService debateArenaService;
+    private final com.tem.spring.quant.service.QuantAutoTunerService autoTunerService;
+    private final com.tem.spring.ai.service.VisionChartAnalysisService visionChartAnalysisService;
 
     /**
      * 1. OpenBB 스타일 데이터 수집 조회 API
@@ -425,6 +429,57 @@ public class TradingSystemController {
     @GetMapping("/gamification/admin/escrow-logs")
     public ResponseEntity<java.util.List<com.tem.spring.gamification.dto.AdminEscrowAuditLogDto>> getAdminAuditLogs() {
         return ResponseEntity.ok(streakRewardClaimService.getAdminAuditLogs());
+    }
+
+    /**
+     * 21. [혁신 1] FastDTW 기반 '유사 차트 오버레이' 고스트 궤적 조회 API
+     */
+    @GetMapping("/quant/fractal-ghost")
+    public ResponseEntity<PatternInsight> getFractalGhost(
+            @RequestParam(defaultValue = "BTCUSDT") String symbol,
+            @RequestParam(defaultValue = "H1") TimeFrame timeFrame,
+            @RequestParam(defaultValue = "30") int limit) {
+        List<Candle> candles = ingestionService.getHistoricalData(symbol, timeFrame, limit);
+        BarSeries series = barSeriesMapper.toBarSeries(symbol, candles);
+        QuantitativeSignal quant = indicatorEngine.calculateSignals(series);
+        return ResponseEntity.ok(chartPatternService.analyzePatternSimilarity(symbol, candles, quant));
+    }
+
+    /**
+     * 22. [혁신 2] 멀티 에이전트 3인 'AI 투자의견 토론' (Debate Arena) API
+     */
+    @GetMapping("/ai/debate")
+    public ResponseEntity<com.tem.spring.ai.dto.AiDebateResponse> getAiDebate(
+            @RequestParam(defaultValue = "BTCUSDT") String symbol) {
+        return ResponseEntity.ok(debateArenaService.conductDebate(symbol));
+    }
+
+    @PostMapping("/ai/debate")
+    public ResponseEntity<com.tem.spring.ai.dto.AiDebateResponse> postAiDebate(
+            @RequestBody(required = false) java.util.Map<String, String> payload) {
+        String symbol = (payload != null && payload.containsKey("symbol")) ? payload.get("symbol") : "BTCUSDT";
+        return ResponseEntity.ok(debateArenaService.conductDebate(symbol));
+    }
+
+    /**
+     * 23. [혁신 3] 비전 차트 즉시 스캔 (Vision Chart Instant Scan) API
+     */
+    @PostMapping("/ai/vision-scan")
+    public ResponseEntity<com.tem.spring.ai.dto.VisionChartAnalysisResponse> scanChartImage(
+            @RequestBody com.tem.spring.ai.dto.VisionChartAnalysisRequest req) {
+        return ResponseEntity.ok(visionChartAnalysisService.analyzeChartImage(req));
+    }
+
+    /**
+     * 24. [혁신 4] 노코드 퀀트 파라미터 오토튜너 & 1-클릭 복사 API
+     */
+    @PostMapping("/quant/auto-tune")
+    public ResponseEntity<com.tem.spring.quant.dto.AutoTuneResponse> runAutoTune(
+            @RequestBody(required = false) com.tem.spring.quant.dto.AutoTuneRequest request) {
+        if (request == null) {
+            request = com.tem.spring.quant.dto.AutoTuneRequest.builder().build();
+        }
+        return ResponseEntity.ok(autoTunerService.tuneStrategy(request));
     }
 }
 

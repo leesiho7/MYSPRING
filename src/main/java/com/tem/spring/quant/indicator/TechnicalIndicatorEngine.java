@@ -60,7 +60,27 @@ public class TechnicalIndicatorEngine {
         double bbMiddleVal = bbMiddle.getValue(lastIndex).doubleValue();
         double bbLowerVal = bbLower.getValue(lastIndex).doubleValue();
 
-        // 4. 정량 점수 산출 (-1.0 ~ +1.0) & 시그널 요약
+        // 4. ATR (Average True Range, 14) & 동적 트레일링 스탑
+        org.ta4j.core.indicators.ATRIndicator atrIndicator = new org.ta4j.core.indicators.ATRIndicator(series, 14);
+        double atrVal = atrIndicator.getValue(lastIndex).doubleValue();
+        double atrTrailingStop = currentPrice - (1.5 * atrVal);
+
+        // 5. VWAP (Volume Weighted Average Price) 계산
+        double cumTypicalVol = 0.0;
+        double cumVol = 0.0;
+        int startIndex = Math.max(0, lastIndex - 50);
+        for (int i = startIndex; i <= lastIndex; i++) {
+            double high = series.getBar(i).getHighPrice().doubleValue();
+            double low = series.getBar(i).getLowPrice().doubleValue();
+            double close = series.getBar(i).getClosePrice().doubleValue();
+            double vol = series.getBar(i).getVolume().doubleValue();
+            double typicalPrice = (high + low + close) / 3.0;
+            cumTypicalVol += typicalPrice * vol;
+            cumVol += vol;
+        }
+        double vwapVal = cumVol > 0 ? (cumTypicalVol / cumVol) : currentPrice;
+
+        // 6. 정량 점수 산출 (-1.0 ~ +1.0) & 시그널 요약
         List<String> signals = new ArrayList<>();
         double score = 0.0;
 
@@ -96,6 +116,18 @@ public class TechnicalIndicatorEngine {
             signals.add("볼린저 밴드 상단 돌파 (단기 저항선)");
         }
 
+        // VWAP 지지/저항 확인
+        if (currentPrice > vwapVal) {
+            score += 0.1;
+            signals.add(String.format("현재가(%.1f)가 VWAP(%.1f) 상회 - 기관 매수세 우위", currentPrice, vwapVal));
+        } else {
+            score -= 0.1;
+            signals.add(String.format("현재가(%.1f)가 VWAP(%.1f) 하회 - 매도 압력 우위", currentPrice, vwapVal));
+        }
+
+        // ATR 변동성 및 트레일링 스탑
+        signals.add(String.format("ATR(14)=%.2f, 권장 1.5-ATR 동적 트레일링 스탑: $%,.2f", atrVal, atrTrailingStop));
+
         // 점수 클램핑 (-1.0 ~ 1.0)
         score = Math.max(-1.0, Math.min(1.0, score));
 
@@ -119,6 +151,9 @@ public class TechnicalIndicatorEngine {
                 .bollingerUpper(bbUpperVal)
                 .bollingerMiddle(bbMiddleVal)
                 .bollingerLower(bbLowerVal)
+                .vwap(vwapVal)
+                .atr(atrVal)
+                .atrTrailingStop(atrTrailingStop)
                 .suggestedAction(action)
                 .quantScore(score)
                 .signalsSummary(signals)
