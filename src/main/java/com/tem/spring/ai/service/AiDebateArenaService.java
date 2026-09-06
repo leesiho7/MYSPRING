@@ -86,7 +86,7 @@ public class AiDebateArenaService {
 
         // 2. ⚡ 짐 시몬스 (Jim Simons) - 르네상스 테크놀로지 퀀트 & 수학적 엣지
         String simonsStance = winRate >= 60.0 ? "BULLISH" : (winRate <= 40.0 ? "BEARISH" : "NEUTRAL");
-        String simonsText = String.format("시장은 인간의 감정이 아닌 수학적 패턴과 확률로 움직입니다. FastDTW 연산 결과 과거 [%s] 구간과 패턴 일치율 %.1f%%, 5일 통계적 승률 %.0f%% (기대수익 %+.1f%%)의 수학적 우위(Edge)가 확인되었습니다. 감정을 철저히 배제하고 14봉 ATR(%.2f) 기반 1.5-ATR 동적 트레일링 스탑($%,.2f)을 1%%의 오차도 없이 기계적으로 집행하십시오.",
+        String simonsText = String.format("시장은 인간의 감정이 아닌 수학적 패턴과 확률로 움직입니다. AETHER 시계열 프랙탈 엔진 연산 결과 과거 [%s] 구간과 패턴 일치율 %.1f%%, 5일 통계적 승률 %.0f%% (기대수익 %+.1f%%)의 수학적 우위(Edge)가 확인되었습니다. 감정을 철저히 배제하고 14봉 ATR(%.2f) 기반 1.5-ATR 동적 트레일링 스탑($%,.2f)을 1%%의 오차도 없이 기계적으로 집행하십시오.",
                 pastPeriod, similarity, winRate, expectedReturn, atr, trailingStop);
 
         dialogue.add(DebateMessage.builder()
@@ -97,7 +97,7 @@ public class AiDebateArenaService {
                 .stance(simonsStance)
                 .content(simonsText)
                 .metrics(List.of(
-                        String.format("FastDTW Match: %.1f%% (%s)", similarity, fractal.getPatternName()),
+                        String.format("Fractal Match: %.1f%% (%s)", similarity, fractal.getPatternName()),
                         String.format("5-Day Win Rate: %.0f%% (Exp: %+.1f%%)", winRate, expectedReturn),
                         String.format("1.5-ATR Trailing Stop: $%,.2f", trailingStop),
                         "Algorithm Edge: Valid"
@@ -145,7 +145,7 @@ public class AiDebateArenaService {
         String verdict = consensusScore >= 65 ? "BULLISH_BIAS" : (consensusScore <= 35 ? "BEARISH_DEFENSE" : "NEUTRAL_CONSOLIDATION");
         String action = consensusScore >= 65 ? "BUY" : (consensusScore <= 35 ? "SELL" : "HOLD");
 
-        String summary = String.format("월가 3대 거장 라운드테이블 최종 합의: [합의점수 %d점 / %s] 버핏의 VWAP 안전마진 지지와 시몬스의 FastDTW 과거 패턴(승률 %.0f%%) 우위 확인. 1.5-ATR 동적 트레일링 스탑($%,.2f)을 엄격히 준수한 %s 포지션 권장.",
+        String summary = String.format("월가 3대 거장 라운드테이블 최종 합의: [합의점수 %d점 / %s] 버핏의 VWAP 안전마진 지지와 시몬스의 시계열 프랙탈 과거 패턴(승률 %.0f%%) 우위 확인. 1.5-ATR 동적 트레일링 스탑($%,.2f)을 엄격히 준수한 %s 포지션 권장.",
                 consensusScore,
                 "BUY".equals(action) ? "매수 우위" : ("SELL".equals(action) ? "비중 축소" : "관망 및 수렴 대기"),
                 winRate,
