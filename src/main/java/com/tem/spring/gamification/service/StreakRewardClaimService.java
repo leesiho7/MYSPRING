@@ -6,6 +6,7 @@ import com.tem.spring.bot.dto.CryptomusPayoutRequest;
 import com.tem.spring.bot.dto.CryptomusPayoutResponse;
 import com.tem.spring.bot.service.CryptomusClientService;
 import com.tem.spring.bot.service.TelegramOfficialBotService;
+import com.tem.spring.bot.service.TronTrc20TransferService;
 import com.tem.spring.community.entity.TokenRewardLogEntity;
 import com.tem.spring.community.repository.TokenRewardLogRepository;
 import com.tem.spring.gamification.dto.ClaimStreakRewardRequest;
@@ -34,12 +35,13 @@ public class StreakRewardClaimService {
     private final UserRepository userRepository;
     private final CryptomusClientService cryptomusClientService;
     private final Web3EscrowTransferService web3EscrowTransferService;
+    private final TronTrc20TransferService tronTrc20TransferService;
     private final WithdrawalRepository withdrawalRepository;
     private final TokenRewardLogRepository rewardLogRepository;
     private final TelegramOfficialBotService telegramOfficialBotService;
 
     /**
-     * 10연승 $10 USDT 보상 즉시 Claim 및 온체인 송금 처리 (Web3 직접 서명 및 전송)
+     * 10연승 $10 USDT 보상 즉시 Claim 및 온체인 송금 처리 (Web3 / TRC-20 선택 지원)
      */
     @Transactional
     public ClaimStreakRewardResponse claimStreakReward(ClaimStreakRewardRequest req) {
@@ -65,12 +67,21 @@ public class StreakRewardClaimService {
             throw new IllegalStateException("100 USDT 에스크로 풀 보상 예치금이 모두 소진되었습니다. 다음 시즌 이벤트를 기대해 주세요!");
         }
 
-        // 4. [방식 2] Web3 ERC-20 온체인 스마트 컨트랙트 직접 전송 ($10.00 USDT)
-        String network = req.getNetwork() != null ? req.getNetwork().toLowerCase() : "polygon"; // 가스비 절감을 위해 Polygon 기본
-        Web3EscrowTransferService.OnChainTransferResult transferResult = web3EscrowTransferService.sendOnChainTransfer(
-                req.getDestinationAddress().trim(), 10.0, network);
+        // 4. 네트워크별 온체인 전송 ($10.00 USDT) - TRC20 vs EVM
+        String network = req.getNetwork() != null ? req.getNetwork().toLowerCase() : "trc20";
+        String txHash;
 
-        String txHash = transferResult.getTxHash();
+        if ("trc20".equals(network) || "tron".equals(network)) {
+            TronTrc20TransferService.TransferResult trc20Result = tronTrc20TransferService.send10WinStreakReward(req.getDestinationAddress().trim());
+            if (!trc20Result.isSuccess()) {
+                throw new IllegalStateException("TRC-20 10 USDT 전송 실패: " + trc20Result.getErrorMessage());
+            }
+            txHash = trc20Result.getTxId();
+        } else {
+            Web3EscrowTransferService.OnChainTransferResult transferResult = web3EscrowTransferService.sendOnChainTransfer(
+                    req.getDestinationAddress().trim(), 10.0, network);
+            txHash = transferResult.getTxHash();
+        }
         String payoutUuid = "WEB3-" + UUID.randomUUID().toString().substring(0, 8);
 
         LocalDateTime now = LocalDateTime.now();

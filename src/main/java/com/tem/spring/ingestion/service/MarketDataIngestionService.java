@@ -67,23 +67,43 @@ public class MarketDataIngestionService {
 
     public static String normalizeSymbol(String rawSymbol) {
         if (rawSymbol == null || rawSymbol.isBlank()) return "BTCUSDT";
-        String s = rawSymbol.trim().toUpperCase().replace("/", "").replace("-", "");
+        String s = rawSymbol.trim().toUpperCase().replace("/", "").replace("-", "").replace(" ", "");
+
+        // Non-crypto traditional assets & macro indices
+        if (s.contains("NASDAQ") || s.equals("NDX") || s.equals("NDXUSDT") || s.equals("NDXUSD") || s.equals("^NDX") || s.equals("QQQ")) return "^NDX";
+        if (s.contains("GOLD") || s.equals("XAU") || s.equals("XAUUSDT") || s.equals("XAUUSD") || s.equals("GC=F") || s.equals("GLD") || s.equals("PAXG")) return "GC=F";
+        if (s.contains("S&P") || s.contains("SP500") || s.equals("SPX") || s.equals("SPXUSDT") || s.equals("SPXUSD") || s.equals("^GSPC") || s.equals("SPY")) return "^GSPC";
+        if (s.startsWith("NVDA")) return "NVDA";
+        if (s.startsWith("TSLA")) return "TSLA";
+        if (s.startsWith("AAPL")) return "AAPL";
+        if (s.startsWith("AMZN")) return "AMZN";
+        if (s.contains("005930") || s.contains("SAMSUNG")) return "005930.KS";
+        if (s.contains("000660") || s.contains("HYNIX")) return "000660.KS";
+
+        // Crypto pairs
         if (s.equals("BTC") || s.equals("BTCUSD")) return "BTCUSDT";
         if (s.equals("ETH") || s.equals("ETHUSD")) return "ETHUSDT";
         if (s.equals("SOL") || s.equals("SOLUSD")) return "SOLUSDT";
         if (s.equals("XRP") || s.equals("XRPUSD")) return "XRPUSDT";
         if (s.equals("SUI") || s.equals("SUIUSD")) return "SUIUSDT";
-        if (s.equals("NVDAUSD")) return "NVDA";
-        if (s.equals("TSLAUSD")) return "TSLA";
-        if (s.equals("AAPLUSD")) return "AAPL";
-        if (s.equals("AMZNUSD")) return "AMZN";
+        if (s.equals("DOGE") || s.equals("DOGEUSD")) return "DOGEUSDT";
+        if (s.equals("ADA") || s.equals("ADAUSD")) return "ADAUSDT";
         return s;
     }
 
     private List<Candle> generateGuaranteedCandles(String symbol, int limit) {
         List<Candle> candles = new java.util.ArrayList<>();
         java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneId.of("UTC"));
-        double price = symbol.contains("BTC") ? 67500.0 : (symbol.contains("ETH") ? 3450.0 : (symbol.contains("NVDA") ? 142.0 : 100.0));
+        double price = switch (symbol) {
+            case "^NDX" -> 29544.15;
+            case "GC=F" -> 4476.60;
+            case "^GSPC" -> 7718.60;
+            case "NVDA" -> 230.36;
+            case "TSLA" -> 218.40;
+            case "AAPL" -> 224.20;
+            case "005930.KS" -> 56200.0;
+            default -> symbol.contains("BTC") ? 67500.0 : (symbol.contains("ETH") ? 3450.0 : (symbol.contains("SOL") ? 180.0 : 100.0));
+        };
 
         for (int i = limit; i >= 0; i--) {
             double change = (Math.random() - 0.48) * (price * 0.015);

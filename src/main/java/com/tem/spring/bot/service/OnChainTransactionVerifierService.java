@@ -141,54 +141,84 @@ public class OnChainTransactionVerifierService {
     }
 
     /**
-     * TRON (TRC20) TronScan API 실시간 검증
+     * TRON (TRC20) Shasta Testnet / TronScan API 실시간 검증
      */
     private VerificationResult verifyTronTransaction(String txHash, double expectedAmount, String expectedToAddress) {
+        String cleanHash = txHash.replace("0x", "");
+        
+        // 1. Shasta 테스트넷 TronGrid API 조회 시도
+        try {
+            WebClient shastaClient = webClientBuilder.baseUrl("https://api.shasta.trongrid.io").build();
+            Map response = shastaClient.post()
+                    .uri("/wallet/gettransactionbyid")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(Map.of("value", cleanHash))
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .timeout(Duration.ofSeconds(4))
+                    .block();
+
+            if (response != null && response.containsKey("txID")) {
+                Object ret = response.get("ret");
+                boolean isSuccess = true;
+                if (ret instanceof java.util.List && !((java.util.List<?>) ret).isEmpty()) {
+                    Object firstRet = ((java.util.List<?>) ret).get(0);
+                    if (firstRet instanceof Map) {
+                        String code = (String) ((Map<?, ?>) firstRet).get("contractRet");
+                        isSuccess = "SUCCESS".equalsIgnoreCase(code);
+                    }
+                }
+                
+                if (isSuccess) {
+                    log.info("[OnChainVerifier] ✅ Shasta Testnet Tx confirmed: txHash={}", cleanHash);
+                    return VerificationResult.builder()
+                            .valid(true)
+                            .message("Shasta 테스트넷 온체인 입금이 정상 확인되었습니다.")
+                            .actualAmount(expectedAmount)
+                            .txHash(cleanHash)
+                            .network("TRC20")
+                            .toAddress(expectedToAddress)
+                            .build();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[OnChainVerifier] Shasta API error for {}: {}", cleanHash, e.getMessage());
+        }
+
+        // 2. TronScan 메인넷 API 폴백 조회
         try {
             WebClient client = webClientBuilder.baseUrl("https://apilist.tronscanapi.com").build();
-
             Map response = client.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/api/transaction-info")
-                            .queryParam("hash", txHash.replace("0x", ""))
+                            .queryParam("hash", cleanHash)
                             .build())
                     .retrieve()
                     .bodyToMono(Map.class)
                     .timeout(Duration.ofSeconds(4))
                     .block();
 
-            if (response == null || !response.containsKey("contractRet")) {
-                return VerificationResult.builder()
-                        .valid(false)
-                        .message("TRON 블록체인에서 해당 트랜잭션을 찾을 수 없습니다.")
-                        .build();
+            if (response != null && response.containsKey("contractRet")) {
+                String contractRet = (String) response.get("contractRet");
+                if ("SUCCESS".equalsIgnoreCase(contractRet)) {
+                    log.info("[OnChainVerifier] ✅ Mainnet TRON Tx confirmed on-chain: txHash={}", cleanHash);
+                    return VerificationResult.builder()
+                            .valid(true)
+                            .message("TRON 메인넷 온체인 입금이 확인되었습니다.")
+                            .actualAmount(expectedAmount)
+                            .txHash(cleanHash)
+                            .network("TRC20")
+                            .toAddress(expectedToAddress)
+                            .build();
+                }
             }
-
-            String contractRet = (String) response.get("contractRet");
-            if (!"SUCCESS".equalsIgnoreCase(contractRet)) {
-                return VerificationResult.builder()
-                        .valid(false)
-                        .message("TRON 트랜잭션이 성공하지 않았습니다: " + contractRet)
-                        .build();
-            }
-
-            log.info("[OnChainVerifier] ✅ Real TRON Tx confirmed on-chain: txHash={}", txHash);
-
-            return VerificationResult.builder()
-                    .valid(true)
-                    .message("TRON 블록체인 온체인 입금이 확인되었습니다.")
-                    .actualAmount(expectedAmount)
-                    .txHash(txHash)
-                    .network("TRC20")
-                    .toAddress(expectedToAddress)
-                    .build();
-
         } catch (Exception e) {
-            log.warn("[OnChainVerifier] TronScan API error for {}: {}", txHash, e.getMessage());
-            return VerificationResult.builder()
-                    .valid(false)
-                    .message("TRON 블록체인 검증 오류: " + e.getMessage())
-                    .build();
+            log.warn("[OnChainVerifier] TronScan API error for {}: {}", cleanHash, e.getMessage());
         }
+
+        return VerificationResult.builder()
+                .valid(false)
+                .message("TRON(샤스타 테스트넷/메인넷)에서 해당 트랜잭션을 찾을 수 없거나 아직 블록 생성이 완료되지 않았습니다.")
+                .build();
     }
 }

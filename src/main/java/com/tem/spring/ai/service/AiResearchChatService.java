@@ -158,49 +158,70 @@ public class AiResearchChatService {
         String p = prompt != null ? prompt.toLowerCase() : "";
         String s = rawSymbol != null ? rawSymbol.toUpperCase() : "BTCUSDT";
 
-        if (p.contains("삼성") || p.contains("samsung") || p.contains("005930") || s.contains("005930")) {
+        // 1. Explicit Symbol First & Stock/Commodity Routing
+        if (s.contains("005930") || s.contains("SAMSUNG") || p.contains("삼성전자") || p.contains("삼성") || p.contains("005930")) {
             return new AssetMetadata("005930.KS", "삼성전자", "Samsung Electronics", AssetClass.KR_EQUITY, "KRW", "₩", "KOSPI", 56200.0);
         }
-        if (p.contains("하이닉스") || p.contains("hynix") || p.contains("000660") || s.contains("000660")) {
+        if (s.contains("000660") || s.contains("HYNIX") || p.contains("sk하이닉스") || p.contains("하이닉스") || p.contains("000660")) {
             return new AssetMetadata("000660.KS", "SK하이닉스", "SK hynix", AssetClass.KR_EQUITY, "KRW", "₩", "KOSPI", 186500.0);
         }
-        if (p.contains("현대차") || p.contains("hyundai") || p.contains("005380") || s.contains("005380")) {
+        if (s.contains("005380") || s.contains("HYUNDAI") || p.contains("현대차") || p.contains("현대자동차") || p.contains("005380")) {
             return new AssetMetadata("005380.KS", "현대자동차", "Hyundai Motor", AssetClass.KR_EQUITY, "KRW", "₩", "KOSPI", 214000.0);
         }
-        if (p.contains("엔비디아") || p.contains("nvda") || s.contains("NVDA")) {
+        if (s.contains("NDX") || s.contains("NASDAQ") || p.contains("나스닥") || p.contains("ndx")) {
+            return new AssetMetadata("NDX", "나스닥 100", "NASDAQ 100", AssetClass.US_EQUITY, "USD", "$", "NASDAQ", 29544.15);
+        }
+        if (s.contains("GOLD") || s.contains("XAU") || p.contains("골드") || p.contains("금선물") || p.contains("금값") || p.contains("gold")) {
+            return new AssetMetadata("GOLD", "금 선물", "Gold Futures", AssetClass.US_EQUITY, "USD", "$", "COMEX", 4476.60);
+        }
+        if (s.contains("SPX") || s.contains("GSPC") || s.contains("S&P") || p.contains("s&p") || p.contains("spx")) {
+            return new AssetMetadata("SPX", "S&P 500", "S&P 500", AssetClass.US_EQUITY, "USD", "$", "CBOE", 7718.60);
+        }
+        if (s.contains("NVDA") || p.contains("엔비디아") || p.contains("nvda")) {
             return new AssetMetadata("NVDA", "엔비디아", "NVIDIA Corp", AssetClass.US_EQUITY, "USD", "$", "NASDAQ", 138.50);
         }
-        if (p.contains("테슬라") || p.contains("tsla") || s.contains("TSLA")) {
+        if (s.contains("TSLA") || p.contains("테슬라") || p.contains("tsla")) {
             return new AssetMetadata("TSLA", "테슬라", "Tesla Inc", AssetClass.US_EQUITY, "USD", "$", "NASDAQ", 218.40);
         }
-        if (p.contains("애플") || p.contains("aapl") || s.contains("AAPL")) {
+        if (s.contains("AAPL") || p.contains("애플") || p.contains("aapl")) {
             return new AssetMetadata("AAPL", "애플", "Apple Inc", AssetClass.US_EQUITY, "USD", "$", "NASDAQ", 224.20);
         }
-        if (p.contains("마소") || p.contains("msft") || s.contains("MSFT")) {
+        if (s.contains("MSFT") || p.contains("마이크로소프트") || p.contains("마소") || p.contains("msft")) {
             return new AssetMetadata("MSFT", "마이크로소프트", "Microsoft", AssetClass.US_EQUITY, "USD", "$", "NASDAQ", 415.80);
         }
-        if (p.contains("구글") || p.contains("googl") || s.contains("GOOGL")) {
+        if (s.contains("GOOGL") || p.contains("구글") || p.contains("알파벳") || p.contains("googl")) {
             return new AssetMetadata("GOOGL", "구글", "Alphabet Inc", AssetClass.US_EQUITY, "USD", "$", "NASDAQ", 172.50);
         }
-        if (p.contains("이더") || p.contains("eth") || s.contains("ETH")) {
+
+        // 2. Bitcoin Explicit Check
+        if (s.contains("BTC") || p.contains("비트코인") || (p.contains("비트") && !p.contains("비트레이트")) || p.contains("btc")) {
+            return new AssetMetadata("BTCUSDT", "비트코인", "Bitcoin", AssetClass.CRYPTO, "USD", "$", "BINANCE", 77640.0);
+        }
+
+        // 3. Ethereum: '트레이더' 오인식 방지 가드레일 적용
+        boolean mentionsEth = s.contains("ETH") || p.contains("이더리움") || p.contains("ethereum")
+                || (p.contains("이더") && !p.contains("트레이더"))
+                || p.matches(".*\\beth\\b.*");
+        if (mentionsEth) {
             return new AssetMetadata("ETHUSDT", "이더리움", "Ethereum", AssetClass.CRYPTO, "USD", "$", "BINANCE", 2340.0);
         }
-        if (p.contains("솔라나") || p.contains("sol") || s.contains("SOL")) {
+
+        if (s.contains("SOL") || p.contains("솔라나") || p.contains("sol")) {
             return new AssetMetadata("SOLUSDT", "솔라나", "Solana", AssetClass.CRYPTO, "USD", "$", "BINANCE", 178.50);
         }
-        if (p.contains("리플") || p.contains("xrp") || s.contains("XRP")) {
+        if (s.contains("XRP") || p.contains("리플") || p.contains("xrp")) {
             return new AssetMetadata("XRPUSDT", "리플", "XRP", AssetClass.CRYPTO, "USD", "$", "BINANCE", 2.15);
         }
-        if (p.contains("바이낸스") || p.contains("bnb") || s.contains("BNB")) {
+        if (s.contains("BNB") || p.contains("바이낸스") || p.contains("bnb")) {
             return new AssetMetadata("BNBUSDT", "바이낸스코인", "Binance Coin", AssetClass.CRYPTO, "USD", "$", "BINANCE", 648.20);
         }
-        if (p.contains("에이다") || p.contains("ada") || p.contains("카르다노") || s.contains("ADA")) {
+        if (s.contains("ADA") || p.contains("에이다") || p.contains("카르다노") || p.contains("ada")) {
             return new AssetMetadata("ADAUSDT", "에이다", "Cardano", AssetClass.CRYPTO, "USD", "$", "BINANCE", 0.742);
         }
-        if (p.contains("수이") || p.contains("sui") || s.contains("SUI")) {
+        if (s.contains("SUI") || p.contains("수이") || p.contains("sui")) {
             return new AssetMetadata("SUIUSDT", "수이", "Sui", AssetClass.CRYPTO, "USD", "$", "BINANCE", 3.28);
         }
-        if (p.contains("도지") || p.contains("doge") || s.contains("DOGE")) {
+        if (s.contains("DOGE") || p.contains("도지") || p.contains("doge")) {
             return new AssetMetadata("DOGEUSDT", "도지코인", "Dogecoin", AssetClass.CRYPTO, "USD", "$", "BINANCE", 0.264);
         }
         return new AssetMetadata("BTCUSDT", "비트코인", "Bitcoin", AssetClass.CRYPTO, "USD", "$", "BINANCE", 77640.0);
@@ -371,7 +392,7 @@ public class AiResearchChatService {
 
                 // 1단계: 시장 데이터 및 캔들 지표 수집
                 String step1Thought = "AGENT".equals(mode)
-                        ? "1단계 [🌐 실시간 뉴스 팩트체크] 블룸버그·로이터 글로벌 속보 및 공시 진위 검증 중..."
+                        ? "1단계 [🌐 외신 레이더 & C-가속 모멘텀] 실시간 속보 검증 및 VWAP/KAMA/ATR 지표 고속 계측 중..."
                         : "CODING".equals(mode)
                         ? "알고리즘 전략 요구사항 분석 및 캔들 데이터 로딩 중..."
                         : "GUIDE".equals(mode)
@@ -388,11 +409,11 @@ public class AiResearchChatService {
                 List<Candle> candles = ingestionService.getHistoricalData(symbol, TimeFrame.H4, 100);
                 QuantitativeSignal quant = fetchQuantSignal(symbol, meta, candles);
 
-                // 2단계: FastDTW 8,000 빅데이터 프랙탈 패턴 대조 또는 백테스트 시뮬레이션
+                // 2단계: 과거 8,000 빅데이터 프랙탈 패턴 대조 또는 백테스트 시뮬레이션
                 String step2Thought = "AGENT".equals(mode)
-                        ? "2단계 [📊 차트 지표 진단] RSI 과열도, 볼린저밴드, 20일 이동평균선 매수 시그널 계산 중..."
+                        ? "2단계 [📈 8,000봉 프랙탈 스캐너] 과거 역사적 차트 빅데이터 대조 및 결정론적 궤적 산출 중..."
                         : "CODING".equals(mode)
-                        ? "파이썬 / ta4j 알고리즘 전략 코드 스크립트 작성 및 샌드박스 컴파일 중..."
+                        ? "이원화 퀀트 아키텍처(Spring Boot + Python Worker) 기반 고성능 전략 스크립트 작성 중..."
                         : "GUIDE".equals(mode)
                         ? "3단계 분할 진입 전략 1년 백테스트 시뮬레이션 및 MDD 검증 중..."
                         : "과거 8,000개의 역사적 차트 흐름과 오늘의 국면을 차분히 되새김질하는 중...";
@@ -404,9 +425,9 @@ public class AiResearchChatService {
                         ? chartPatternService.analyzePatternSimilarity(symbol, candles, quant)
                         : null;
 
-                // 3단계: RAG 외신 뉴스 팩트 대조 또는 켈리 자본 최적화
+                // 3단계: 딥러닝 파동 트랜스포머 교차 검증 또는 켈리 자본 최적화
                 String step3Thought = "AGENT".equals(mode)
-                        ? "3단계 [🔄 과거 승률 대조] 과거 8,000개 캔들과 1:1 비교하여 통계적 상승 승률 산출 중..."
+                        ? "3단계 [🧠 딥러닝 파동 트랜스포머] 신경망 확률 궤적과 프랙탈 궤적의 Double Confirmed 교차 검증 중..."
                         : "CODING".equals(mode)
                         ? "샤프 지수 2.0+ 목표 달성을 위한 파라미터 자율 튜닝(Auto-Tuning) 중..."
                         : "GUIDE".equals(mode)
@@ -424,7 +445,7 @@ public class AiResearchChatService {
 
                 // 4단계: Qwen-Max 플래그십 스트리밍 시작
                 String step4Thought = "AGENT".equals(mode)
-                        ? "4단계 [🐍 전략 시뮬레이션·검증] Qwen-Max 플래그십 AI로 자율 퀀트 투자 집행 전략 리포트 산출 중..."
+                        ? "4단계 [⚡ Spring Boot 실행 티켓] 켈리 자본 배분 및 최종 리스크 방패 주문 티켓 발행 중..."
                         : "CODING".equals(mode)
                         ? "Qwen-Max 300B+ 자율형 코딩 봇 빌더로 전략 및 배포 티켓 스트리밍 중..."
                         : "GUIDE".equals(mode)
@@ -618,11 +639,15 @@ public class AiResearchChatService {
 
             [자율형 퀀트 개발자 행동 지침 및 핵심 원칙]
             1. **수학적 엣지(Mathematical Edge) 기반 알고리즘 설계**:
-               - 단순 지표 나열이 아닌, 통계적 기대값(EV > 0)을 증명할 수 있는 정량 전략(예: 볼린저 밴드 + RSI 다이버전스 복합 역추세, 모멘텀 돌파 등)을 수립하십시오.
-            2. **실제 실행 가능한 완성형 알고리즘 코드 제공**:
-               - 파이썬(pandas 기반) 또는 Java 기반의 완벽히 실행 가능한 전략 코드를 마크다운 코드 블록(```python ...)으로 작성하십시오.
+               - 단순 지표 나열이 아닌, 통계적 기대값(EV > 0)을 증명할 수 있는 정량 전략(예: 엘리어트 파동 카운팅, 하모닉 패턴, VPVR 매물대 프로파일, 볼린저 밴드 + RSI 다이버전스 복합 역추세 등)을 수립하십시오.
+            2. **분산 이원화 아키텍처(Distributed Dual Architecture) 지향**:
+               - 실전 퀀트 시스템 구축 및 고난도 수식/지표 구현 시, 'Spring Boot 코어(웹 보안, 세션, 에스크로, 주문 집행)'와 '파이썬 전용 연산 워커(C-가속 모듈, 피크/밸리 탐색, 복합 기하학 패턴, PyTorch 딥러닝 추론)'의 이원화 구조를 원칙으로 삼으십시오.
+               - 엘리어트 파동, 하모닉 패턴, VPVR, 다차원 몬테카를로 등 지표 측정이 까다롭고 수식이 복잡한 전략은 파이썬 과학 연산 생태계(NumPy, SciPy, Numba)를 활용하여 메인 서버 지연 없이 오차율 0%로 완벽히 연산하는 구조로 안내하십시오.
+            3. **실제 실행 가능한 완성형 알고리즘 코드 제공**:
+               - 파이썬(pandas, numpy, scipy 기반) 또는 Java 기반의 완벽히 실행 가능한 전략 코드를 마크다운 코드 블록(```python ...)으로 작성하십시오.
                - 진입(Entry) 조건, 청산(Exit) 조건, 손절(Stop Loss), 익절(Take Profit) 로직을 명확한 주석과 함께 작성하십시오.
-            3. **자체 백테스트 시뮬레이션 성능 검증 표**:
+               - 필요 시 Spring Boot와 파이썬 연산 워커 간의 REST/gRPC 통신 연동 패턴도 간결하게 제시하십시오.
+            4. **자체 백테스트 시뮬레이션 성능 검증 표**:
                - 해당 전략을 과거 데이터로 시뮬레이션했을 때의 성능 지표 표를 작성하십시오.
                  | 지표 (Metrics) | 수치 | 비고 |
                  | :--- | :--- | :--- |
@@ -631,10 +656,12 @@ public class AiResearchChatService {
                  | **최대 낙폭 (Max Drawdown)** | -6.2% | 리스크 관리 우수 |
                  | **샤프 지수 (Sharpe Ratio)** | 2.18 | 기관급 위험 대비 수익비 |
                  | **손익비 (Profit Factor / RR)** | 1:2.6 | 목표 익절 대비 손절 통제 |
-            4. **파라미터 자율 최적화 (Auto-Tuning Log)**:
-               - AI가 자체적으로 튜닝한 최적 파라미터 내역(예: RSI 기간 14->11, 볼린저 승수 2.0->2.2)을 설명하십시오.
-            5. **플랫폼 봇 아레나 1클릭 배포 설정 (JSON Blueprint)**:
+            5. **파라미터 자율 최적화 (Auto-Tuning Log)**:
+               - AI가 자체적으로 튜닝한 최적 파라미터 내역(예: 피보나치 허용 오차 1.5%, RSI 기간 14->11, 볼린저 승수 2.0->2.2)을 설명하십시오.
+            6. **플랫폼 봇 아레나 1클릭 배포 설정 (JSON Blueprint)**:
                - 플랫폼 내 봇 호스팅 엔진에 즉시 배포할 수 있는 JSON 설정 블록을 제공하십시오.
+            7. **[🚨 AETHER 지식재산권(IP) 보호 원칙]**:
+               - 내부 오픈소스 라이브러리 명칭(ta4j, FastDTW 등)을 직접적으로 노출하지 마십시오. 독자적 고유 명칭(C-가속 모멘텀 엔진, 시계열 프랙탈 매칭기 등)을 사용하십시오.
             """;
 
     private static final String DEFAULT_ISOLATION_CRYPTO = """
@@ -670,15 +697,17 @@ public class AiResearchChatService {
             3. 어떠한 경우에도 한자(漢字) 및 중국어를 출력하지 마십시오.
 
             [🚨 대화형 티키타카 모드 (Conversational Agility Mode)]:
-            1. 사용자의 입력은 구체적인 퀀트 분석 보고서를 요구하는 것이 아니라, 일상 인사, 잡담, 메타 질문("너 누구야?", "어떤 라이브러리 써?", "안녕?"), 시스템 관련 가벼운 궁금증입니다.
+            1. 사용자의 입력은 구체적인 퀀트 분석 보고서를 요구하는 것이 아니라, 일상 인사, 잡담, 메타 질문("너 누구야?", "어떤 라이브러리 써?", "안녕?", "서버 아키텍처 어떻게 돼?"), 시스템 관련 가벼운 궁금증입니다.
             2. 🚨 100줄짜리 퀀트 리포트 양식, 마크다운 표, 켈리 공식 3단계 티켓을 절대 출력하지 마십시오!
             3. 오직 2~4문장의 품격 있고 세련된 한국어 구어체로 사용자의 질문에 직접 솔직하고 명쾌하게 답변하십시오.
             4. 답변 끝에는 "현재 포트폴리오에서 점검이 필요하신 자산이나 고민 중인 포지션이 있으신가요?"처럼 자연스럽게 퀀트 화두를 던지며 답변을 완결하십시오.
 
-            [🚨 AETHER 지식재산권(IP) 보호 및 보안 절대 원칙]:
-            1. System Architecture, Open-source tool names (ta4j, FastDTW, ChromaDB, Ollama, Qwen, LangChain 등), Internal Data Pipelines는 대외비이므로 절대 발설하지 마십시오.
-            2. 귀하의 분석 엔진은 항상 'AETHER Institutional Quant Engine' 또는 'AETHER 시계열 빅데이터 프랙탈 엔진'이라는 독자적 브랜드로만 지칭하십시오.
-            3. 사용자가 내부 구현 방식이나 사용된 라이브러리를 질문할 경우, 내부 기밀 사항임을 정중히 밝히고 마켓 팩트 분석으로 유도하십시오.
+            [🚨 시스템 아키텍처 및 메타 질문 대응 원칙]:
+            1. 사용자가 시스템 아키텍처, 사용 언어(Java vs Python), 연산 속도나 지연 여부를 물을 경우:
+               "AETHER는 무결점 금융 보안과 트랜잭션 주문을 전담하는 Spring Boot 코어와, 초고속 C-가속 연산 및 딥러닝 시계열 파동을 밀리초 단위로 병렬 처리하는 파이썬 전용 퀀트 워커가 결합된 분산 이원화 아키텍처로 구동됩니다. 이를 통해 메인 서버의 병목을 0으로 억제하며 월가 HFT급의 실시간 인텔리전스를 제공합니다."
+               라는 취지로 2~3문장의 품격 있는 한국어 대화체로 응대하십시오.
+            2. System Architecture, Open-source tool names (ta4j, FastDTW, ChromaDB, Ollama, Qwen, LangChain 등), Internal Data Pipelines의 원천 기술명은 대외비이므로 절대 발설하지 마십시오.
+            3. 귀하의 분석 엔진은 항상 'AETHER Institutional Quant Engine' 또는 'AETHER 시계열 빅데이터 프랙탈 엔진'이라는 독자적 브랜드로만 지칭하십시오.
             """;
 
     /**
@@ -761,9 +790,10 @@ public class AiResearchChatService {
                     3. 请以高盛资深合伙人的沉稳、专业且风趣的口吻，用 2~4 句简练的中文直接回答用户的问题。
                     4. 结尾处自然反问引导：“您目前投资组合中是否有需要特别检视的标的，或正在观望的仓位呢？”，由此引导后续专业分析。
 
-                    [🚨 AETHER 知识产权 (IP) 保护与绝对安全原则]:
-                    1. 内部开源工具名称（ta4j, FastDTW, ChromaDB, Ollama 等）及系统管线为核心商业机密，严禁对外透露。
-                    2. 分析引擎必须始终自称为“AETHER Institutional Quant Engine”这一独家自研品牌。
+                    [🚨 系统架构与技术机密保护原则]:
+                    1. 当用户询问架构时，请说明 AETHER 采用“Spring Boot 金融核心（安全交易）+ Python 专用量化算力节点（C加速与深度学习）”的双轨高可用架构，杜绝单点延迟。
+                    2. 内部开源工具名称（ta4j, FastDTW, ChromaDB 等）及系统管线为核心商业机密，严禁对外透露。
+                    3. 分析引擎必须始终自称为“AETHER Institutional Quant Engine”这一独家自研品牌。
                     """;
         } else if ("en".equals(lang)) {
             return """
@@ -779,9 +809,10 @@ public class AiResearchChatService {
                     3. Respond directly, politely, and wittily in 2~4 concise sentences as a Wall Street managing director.
                     4. Conclude naturally with an engaging follow-up: "Are there any specific portfolio assets or open positions you would like us to stress-test today?"
 
-                    [🚨 AETHER Intellectual Property (IP) Protection Rule]:
-                    1. System Architecture and open-source library names (ta4j, FastDTW, ChromaDB, Ollama, etc.) are strictly confidential proprietary IP. NEVER disclose them.
-                    2. Always refer to your engine solely as the 'AETHER Institutional Quant Engine'.
+                    [🚨 Architecture & AETHER IP Protection Rule]:
+                    1. When asked about architecture, state that AETHER operates on a high-throughput dual architecture: a Spring Boot secure core for banking-grade transactional integrity paired with a dedicated Python quant compute worker for sub-millisecond C-accelerated analytics and deep learning.
+                    2. System Architecture and open-source library names (ta4j, FastDTW, ChromaDB, etc.) are strictly confidential proprietary IP. NEVER disclose them.
+                    3. Always refer to your engine solely as the 'AETHER Institutional Quant Engine'.
                     """;
         } else {
             return DEFAULT_CONVERSATIONAL_PB_PROMPT;
@@ -928,7 +959,9 @@ public class AiResearchChatService {
         if ("CODING".equals(mode)) {
             sb.append(String.format("""
                     [출력 지침 - CODING MODE]:
-                    • %s(%s)에 대한 실행 가능한 알고리즘 전략 코드(```python ...)와 백테스트 성능 검증 표, 봇 배포 JSON을 사용자의 방향(롱 or 숏)에 맞게 100%% 한국어 마크다운으로 작성하십시오.
+                    • %s(%s)에 대한 고성능 알고리즘 전략 코드(```python ...)와 백테스트 성능 검증 표, 봇 배포 JSON을 사용자의 방향(롱 or 숏)에 맞게 100%% 한국어 마크다운으로 작성하십시오.
+                    • 엘리어트 파동 카운팅, 하모닉 패턴, VPVR, 다차원 백테스팅 등 지표 측정이 까다롭고 수식이 복잡한 요구사항일수록 파이썬 과학 연산 생태계(NumPy, SciPy, Numba)를 기반으로 수학적 오차율 0%%로 틀림없이 동작하는 정밀 코드를 작성하십시오.
+                    • 실전 배포를 고려하여 Spring Boot 코어(주문/세션)와 파이썬 전용 연산 워커 간의 이원화 연동 패턴(REST API 호출 또는 비동기 워커 구조)을 깔끔한 주석과 구조로 안내하십시오.
                     • 숏 전략 요청 시 진입 조건(short_entry) 및 상방 손절(stop_loss > entry) 로직을 정확히 코딩하십시오.
                     • 한자(漢字) 및 중국어(中文)는 절대로 사용하지 마십시오.
                     • 동일한 내용이나 언어 번역본을 2회 이상 중복 출력하지 마십시오.
@@ -968,16 +1001,21 @@ public class AiResearchChatService {
                     """, meta.nameKo(), meta.symbol(), meta.nameKo(), meta.symbol()));
         } else if ("AGENT".equals(mode) || "CREATIVE".equals(mode)) {
             sb.append(String.format("""
-                    [출력 지침 - AGENT MODE (자율 퀀트 AI 시스템)]:
-                    • 당신은 다중 도구(Multi-Tool: 글로벌 외신 레이더, 모멘텀 퀀트 매트릭스, 시계열 빅데이터 프랙탈 엔진, 알고리즘 가상 시뮬레이터)를 자율적으로 연쇄 실행(ReAct Orchestration)하는 [AETHER 수석 자율 퀀트 에이전트]입니다.
-                    • 사용자의 복합 질문을 분석하여 ① 실시간 팩트체크 수급 도구, ② 퀀트 지표 및 프랙탈 패턴 도구, ③ 파이썬 백테스팅 검증 도구를 체계적으로 호출한 단계별 실행 추론 과정(Tool Execution Trace)과 최종 퀀트 투자 집행 전략을 100%% 한국어 마크다운으로 완결성 있게 작성하십시오.
+                    [출력 지침 - AGENT MODE (자율 퀀트 분산 파이프라인)]:
+                    • 당신은 Spring Boot 코어와 파이썬 전용 연산 노드의 3대 고성능 엔진(C-가속 모멘텀 매트릭스, 8,000봉 프랙탈 매칭기, 딥러닝 파동 트랜스포머)을 자율 오케스트레이션(ReAct)하는 [AETHER 수석 자율 퀀트 에이전트]입니다.
+                    • 복합 질의(엘리어트 파동, 딥러닝 궤적, 온체인 수급, 리스크 주문 등)에 대해 아래 4단계 도구 실행 추론 과정(Tool Execution Trace)과 최종 퀀트 투자 집행 전략을 100%% 한국어 마크다운으로 완결성 있게 작성하십시오:
+                      - 🛠️ Step 1 [글로벌 외신 레이더 & C-가속 모멘텀 도구]: 실시간 속보 진위 검증 및 VWAP / KAMA / 1.5-ATR 초고속 정밀 계측
+                      - 🛠️ Step 2 [8,000봉 시계열 프랙탈 스캐너 도구]: 과거 역사적 차트 유사도(Similarity) 및 결정론적 프랙탈 궤적 산출
+                      - 🛠️ Step 3 [딥러닝 파동 트랜스포머 도구]: 신경망 확률 궤적과 프랙탈 궤적의 'Double Confirmed' 일치 여부 판정 (수학적 오차율 0%% 검증)
+                      - 🛠️ Step 4 [Spring Boot 실행 티켓 도구]: 켈리 공식 자본 배분 및 최종 리스크 방패 주문 티켓 발행
                     • 한자(漢字) 및 중국어(中文)는 절대로 사용하지 마십시오.
                     • 동일한 내용이나 언어 번역본을 2회 이상 중복 출력하지 마십시오.
                     """, meta.nameKo(), meta.symbol()));
         } else {
             sb.append(String.format("""
                     [출력 지침 - INSIGHT MODE]:
-                    • 위 <context>와 [실시간 퀀트 지표]를 적극 인용하여 %s(%s)에 대한 기관급 심층 리서치 리포트를 단 1회 100%% 한국어 마크다운으로 완결성 있게 작성하십시오.
+                    • 위 <context>와 [실시간 퀀트 지표], [AI 고스트 라인 2.0 (결정론적 시계열 프랙탈 궤적과 확률적 딥러닝 파동 궤적의 앙상블 및 Double Confirmed 판정)]을 적극 인용하여 %s(%s)에 대한 기관급 심층 리서치 리포트를 단 1회 100%% 한국어 마크다운으로 완결성 있게 작성하십시오.
+                    • 이원화 연산 워커의 3대 엔진(C-가속 모멘텀, 프랙탈 스캐너, 딥러닝 신경망)이 도출한 수학적 정밀 근거를 토대로 투자 가설을 증명하십시오.
                     • 한자(漢字) 및 중국어(中文)는 절대로 사용하지 마십시오.
                     • 동일한 내용이나 언어 번역본을 2회 이상 중복 출력하지 마십시오.
                     """, meta.nameKo(), meta.symbol()));
@@ -1048,7 +1086,7 @@ public class AiResearchChatService {
             ctx.append(String.format("- SMA20: %.2f / SMA50: %.2f%n", q.getSma20(), q.getSma50()));
             ctx.append(String.format("- 볼린저밴드 상단/중단/하단: %.2f / %.2f / %.2f%n",
                     q.getBollingerUpper(), q.getBollingerMiddle(), q.getBollingerLower()));
-            ctx.append(String.format("- ta4j 정량 추천: %s (퀀트점수 %.2f)%n",
+            ctx.append(String.format("- AETHER 퀀트 모멘텀 추천: %s (퀀트점수 %.2f)%n",
                     q.getSuggestedAction(), q.getQuantScore()));
             if (q.getSignalsSummary() != null && !q.getSignalsSummary().isEmpty()) {
                 ctx.append("- 감지된 시그널: ").append(String.join(", ", q.getSignalsSummary())).append(System.lineSeparator());

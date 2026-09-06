@@ -95,7 +95,7 @@ blockchain:
     addresses:
       polygon: ${DEPOSIT_WALLET_POLYGON:0xb0390a087488E304cA32996532Ab9f40028511fE}
       bsc: ${DEPOSIT_WALLET_BSC:0xb0390a087488E304cA32996532Ab9f40028511fE}
-      trc20: ${DEPOSIT_WALLET_TRC20:TLZuz8MAZ34w8i4fejUJ7qaF8PkgF8W4UE}
+      trc20: ${DEPOSIT_WALLET_TRC20:TVAfSsFKhMxj3jMvdSbK2Gf7ncbDgRu3Dk}
       solana: ${DEPOSIT_WALLET_SOLANA:8cEVKX4SzUUADEkkp9X62eWrgXRuU9zZiWBTgQfupqKA}
 
 
@@ -131,6 +131,23 @@ escrow:
   wallet:
     address: ${ESCROW_WALLET_ADDRESS:0xb0390a087488E304cA32996532Ab9f40028511fE}
     private-key: ${ESCROW_WALLET_PRIVATE_KEY:} # 64자리 16진수 개인키 (미입력 시 안전한 Simulation 모드 동작)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TRC-20 USDT 입금 감지 (Shasta 테스트넷 → 메인넷 전환 시 URL/컨트랙트만 교체)
+# ──────────────────────────────────────────────────────────────────────────────
+tron:
+  trongrid:
+    base-url: ${TRONGRID_BASE_URL:https://api.shasta.trongrid.io}   # 메인넷: https://api.trongrid.io
+    api-key: ${TRONGRID_API_KEY:}                                    # TronGrid Pro API Key (선택)
+  usdt:
+    contract-address: ${TRON_USDT_CONTRACT:TG3XXyExBkPp9nzdajDZsozEu4B5U2U2AZ}  # 메인넷: TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+  deposit:
+    min-confirmations: ${TRON_MIN_CONFIRMATIONS:19}
+    polling:
+      enabled: ${TRON_POLLING_ENABLED:true}
+  master-wallet:
+    address: ${TRON_MASTER_WALLET_ADDRESS:TVAfSsFKhMxj3jMvdSbK2Gf7ncbDgRu3Dk}   # 운영자 서버 지갑 (집금/Sweep 대상)
+
 
 
 
