@@ -42,4 +42,8 @@ chroma_data/
 ### Subprojects ###
 react-vite-ui/
 
-
+### Python Bytecode ###
+__pycache__/
+*.pyc
+*.nbc
+*.nbi
