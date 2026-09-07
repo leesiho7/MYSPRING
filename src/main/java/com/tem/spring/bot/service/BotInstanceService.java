@@ -14,6 +14,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +36,29 @@ public class BotInstanceService {
     private final PythonBotGenerator botGenerator;
     private final PythonSandboxRunner sandboxRunner;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * 서버 시작/재배포 시 DB에서 RUNNING 상태였던 봇 인스턴스 백그라운드 자동 복구 및 가동 재개
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void recoverRunningBotInstances() {
+        log.info("[BotInstanceService] 🔄 Recovering RUNNING 24H Bot Instances from MySQL Database...");
+        try {
+            List<BotInstanceEntity> runningBots = botRepository.findAll().stream()
+                    .filter(b -> "RUNNING".equalsIgnoreCase(b.getStatus()))
+                    .toList();
+
+            for (BotInstanceEntity bot : runningBots) {
+                if (!sandboxRunner.isRunning(bot.getId())) {
+                    sandboxRunner.startInstance(bot.getId(), bot.getBotName(), bot.getSymbol(), bot.getMode(), bot.getDeveloperPythonCode());
+                    log.info("[BotInstanceService] ⚡ Auto-recovered 24H Bot Instance #{} [{}]", bot.getId(), bot.getBotName());
+                }
+            }
+            log.info("[BotInstanceService] ✅ Successfully recovered {} active bot instances.", runningBots.size());
+        } catch (Exception e) {
+            log.warn("[BotInstanceService] Failed to auto-recover bot instances: {}", e.getMessage());
+        }
+    }
 
     /**
      * 1. 봇 인스턴스 생성 또는 설정 갱신
@@ -69,7 +95,7 @@ public class BotInstanceService {
                 .user(user)
                 .botName(req.getBotName())
                 .mode(req.getMode() != null ? req.getMode().toUpperCase() : "BEGINNER")
-                .status("STOPPED")
+                .status("RUNNING")
                 .exchange(req.getExchange() != null ? req.getExchange().toUpperCase() : "BINANCE")
                 .symbol(req.getSymbol() != null ? req.getSymbol().toUpperCase() : "BTCUSDT")
                 .timeFrame(req.getTimeFrame() != null ? req.getTimeFrame() : "5m")
@@ -81,11 +107,14 @@ public class BotInstanceService {
                 .winningTrades(0)
                 .cumulativePnlPct(0.0)
                 .currentPositionUsdt(0.0)
+                .startedAt(LocalDateTime.now())
+                .lastExecutedAt(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
                 .build();
 
         BotInstanceEntity saved = botRepository.save(bot);
-        log.info("[BotInstanceService] Created Bot Instance #{} [{}]", saved.getId(), saved.getBotName());
+        sandboxRunner.startInstance(saved.getId(), saved.getBotName(), saved.getSymbol(), saved.getMode(), saved.getDeveloperPythonCode());
+        log.info("[BotInstanceService] Created & Started Bot Instance #{} [{}]", saved.getId(), saved.getBotName());
 
         return mapToResponse(saved, true, "가상 인스턴스 봇이 성공적으로 설정되었습니다.");
     }
@@ -142,6 +171,44 @@ public class BotInstanceService {
     }
 
     /**
+     * 3-1. 봇 가상 인스턴스 일시 정지 (PAUSE)
+     */
+    @Transactional
+    public BotInstanceResponse pauseBot(Long instanceId, Long userId) {
+        BotInstanceEntity bot = botRepository.findByIdAndUserId(instanceId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("봇 인스턴스를 찾을 수 없습니다. ID: " + instanceId));
+
+        bot.setStatus("PAUSED");
+        sandboxRunner.stopInstance(bot.getId());
+
+        BotInstanceEntity saved = botRepository.save(bot);
+        log.info("[BotInstanceService] ⏸ Bot #{} paused", bot.getId());
+
+        return mapToResponse(saved, true, "가상 인스턴스 봇이 일시 정지되었습니다.");
+    }
+
+    /**
+     * 3-2. 봇 가상 인스턴스 완전 삭제 (DELETE)
+     */
+    @Transactional
+    public BotInstanceResponse deleteBot(Long instanceId, Long userId) {
+        BotInstanceEntity bot = botRepository.findByIdAndUserId(instanceId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("봇 인스턴스를 찾을 수 없습니다. ID: " + instanceId));
+
+        sandboxRunner.stopInstance(bot.getId());
+        botRepository.delete(bot);
+        log.info("[BotInstanceService] 🗑️ Bot #{} deleted permanently", instanceId);
+
+        return BotInstanceResponse.builder()
+                .success(true)
+                .instanceId(instanceId)
+                .botName(bot.getBotName())
+                .status("DELETED")
+                .message("봇 인스턴스가 완전히 삭제되었습니다.")
+                .build();
+    }
+
+    /**
      * 4. 봇 실시간 상태 및 누적 수익률 조회
      */
     @Transactional(readOnly = true)
@@ -150,19 +217,29 @@ public class BotInstanceService {
                 .orElseThrow(() -> new IllegalArgumentException("봇 인스턴스를 찾을 수 없습니다. ID: " + instanceId));
 
         boolean isActuallyRunning = sandboxRunner.isRunning(bot.getId());
-        if (!isActuallyRunning && "RUNNING".equals(bot.getStatus())) {
-            bot.setStatus("STOPPED");
+        if ("RUNNING".equals(bot.getStatus()) && !isActuallyRunning) {
+            // JVM 재시작 등으로 스케줄러가 미가동 시 자동 재개
+            sandboxRunner.startInstance(bot.getId(), bot.getBotName(), bot.getSymbol(), bot.getMode(), bot.getDeveloperPythonCode());
         }
 
         return mapToResponse(bot, true, "봇 상태 조회 성공");
     }
 
     /**
-     * 5. 유저의 전체 봇 인스턴스 목록 조회
+     * 5. 유저의 전체 봇 인스턴스 목록 조회 (상태 격리 보장 및 백엔드 Auto-Repair)
      */
     @Transactional(readOnly = true)
     public List<BotInstanceResponse> getUserBots(Long userId) {
         List<BotInstanceEntity> bots = botRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        
+        // 🛡️ 백엔드 인프라 방어: DB가 RUNNING인데 백그라운드 프로세스가 미가동 상태면 백엔드에서 자체 자동 재가동
+        for (BotInstanceEntity bot : bots) {
+            if ("RUNNING".equals(bot.getStatus()) && !sandboxRunner.isRunning(bot.getId())) {
+                log.info("[BotInstanceService] 🛡️ Auto-repairing RUNNING Bot #{} background process...", bot.getId());
+                sandboxRunner.startInstance(bot.getId(), bot.getBotName(), bot.getSymbol(), bot.getMode(), bot.getDeveloperPythonCode());
+            }
+        }
+
         return bots.stream().map(b -> mapToResponse(b, true, null)).toList();
     }
 

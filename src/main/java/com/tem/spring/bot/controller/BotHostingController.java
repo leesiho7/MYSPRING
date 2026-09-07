@@ -67,6 +67,26 @@ public class BotHostingController {
     }
 
     /**
+     * 5-1. 봇 가상 인스턴스 일시 정지 (PAUSE) API
+     */
+    @PostMapping("/instance/{instanceId}/pause")
+    public ResponseEntity<BotInstanceResponse> pauseBot(
+            @PathVariable Long instanceId,
+            @RequestParam Long userId) {
+        return ResponseEntity.ok(instanceService.pauseBot(instanceId, userId));
+    }
+
+    /**
+     * 5-2. 봇 가상 인스턴스 영구 삭제 API
+     */
+    @DeleteMapping("/instance/{instanceId}")
+    public ResponseEntity<BotInstanceResponse> deleteBot(
+            @PathVariable Long instanceId,
+            @RequestParam Long userId) {
+        return ResponseEntity.ok(instanceService.deleteBot(instanceId, userId));
+    }
+
+    /**
      * 6. 봇 실시간 상태 및 누적 수익률 조회 API
      */
     @GetMapping("/instance/{instanceId}/status")

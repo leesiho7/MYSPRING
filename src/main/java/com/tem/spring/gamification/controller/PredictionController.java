@@ -66,4 +66,18 @@ public class PredictionController {
             @RequestParam(defaultValue = "BTCUSDT") String symbol) {
         return ResponseEntity.ok(predictionService.getHiveMindBattle(symbol));
     }
+
+    /**
+     * 6. 특정 유저의 현재 활성화(PENDING)된 라운드 예측 조회 API (페이지/배포 리로드 시 DB 상태 복원용)
+     */
+    @GetMapping("/active")
+    public ResponseEntity<PredictionResponse> getActivePrediction(
+            @RequestParam Long userId,
+            @RequestParam(defaultValue = "BTCUSDT") String symbol) {
+        PredictionResponse response = predictionService.getActivePrediction(userId, symbol);
+        if (response == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(response);
+    }
 }

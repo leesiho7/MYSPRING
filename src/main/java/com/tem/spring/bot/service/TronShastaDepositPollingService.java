@@ -81,7 +81,7 @@ public class TronShastaDepositPollingService {
     private boolean pollingEnabled;
 
     /** 운영자 마스터 집금 지갑 (Sweep 대상) */
-    @Value("${tron.master-wallet.address:TLZuz8MAZ34w8i4fejUJ7qaF8PkgF8W4UE}")
+    @Value("${tron.master-wallet.address:TVAfSsFKhMxj3jMvdSbK2Gf7ncbDgRu3Dk}")
     private String masterWalletAddress;
 
     private final RestTemplate restTemplate = new RestTemplate();

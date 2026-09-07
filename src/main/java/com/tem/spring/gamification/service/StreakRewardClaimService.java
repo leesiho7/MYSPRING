@@ -2,9 +2,6 @@ package com.tem.spring.gamification.service;
 
 import com.tem.spring.auth.entity.UserEntity;
 import com.tem.spring.auth.repository.UserRepository;
-import com.tem.spring.bot.dto.CryptomusPayoutRequest;
-import com.tem.spring.bot.dto.CryptomusPayoutResponse;
-import com.tem.spring.bot.service.CryptomusClientService;
 import com.tem.spring.bot.service.TelegramOfficialBotService;
 import com.tem.spring.bot.service.TronTrc20TransferService;
 import com.tem.spring.community.entity.TokenRewardLogEntity;
@@ -24,7 +21,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 10연승 달성 시 $10 USDT 자동 출금(Claim) 보상 지급 서비스 (Cryptomus Payout API 연동)
+ * 10연승 달성 시 $10 USDT 온체인 출금(Claim) 보상 지급 서비스 (Web3 & TRC-20 지원)
  */
 @Slf4j
 @Service
@@ -33,7 +30,6 @@ public class StreakRewardClaimService {
 
     private final UserPredictionStatsRepository statsRepository;
     private final UserRepository userRepository;
-    private final CryptomusClientService cryptomusClientService;
     private final Web3EscrowTransferService web3EscrowTransferService;
     private final TronTrc20TransferService tronTrc20TransferService;
     private final WithdrawalRepository withdrawalRepository;

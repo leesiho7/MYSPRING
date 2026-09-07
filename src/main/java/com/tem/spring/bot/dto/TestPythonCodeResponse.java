@@ -20,4 +20,11 @@ public class TestPythonCodeResponse {
     private String simulatedOutput;
     private double simulatedWinRate;
     private double simulatedPnlPct;
+    private int totalBars;
+    private int totalTrades;
+    private int winningTrades;
+    private int losingTrades;
+    private double maxDrawdownPct;
+    private double sharpeRatio;
+    private double profitFactor;
 }

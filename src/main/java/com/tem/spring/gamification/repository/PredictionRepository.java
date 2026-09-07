@@ -24,4 +24,7 @@ public interface PredictionRepository extends JpaRepository<PredictionEntity, Lo
 
     @Query("SELECT COUNT(p) FROM PredictionEntity p WHERE p.symbol = :symbol AND p.predictedDirection = 'BEAR'")
     long countBearVotesBySymbol(@Param("symbol") String symbol);
+
+    @Query("SELECT p FROM PredictionEntity p WHERE p.user.id = :userId AND p.symbol = :symbol AND p.status = 'PENDING' ORDER BY p.createdAt DESC")
+    List<PredictionEntity> findActivePredictionsByUserAndSymbol(@Param("userId") Long userId, @Param("symbol") String symbol);
 }

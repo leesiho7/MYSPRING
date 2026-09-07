@@ -102,10 +102,10 @@ blockchain:
 # Official Telegram Bot Configuration (1:1 Personal Deep Linking)
 telegram:
   bot:
-    token: ${TELEGRAM_BOT_TOKEN:mock_bot_token_123456789:ABCdefGHIjklMNOpqrsTUVwxyz}
-    username: ${TELEGRAM_BOT_USERNAME:AetherQuantOfficialBot}
+    token: ${TELEGRAM_BOT_TOKEN:8652016277:AAG8R4cgUh8z6Dth32QHZaYFwHsvY41tGz0}
+    username: ${TELEGRAM_BOT_USERNAME:MyQuantOfficial_bot}
     webhook-url: ${TELEGRAM_WEBHOOK_URL:https://api.aether-trading.com/api/v1/telegram/webhook}
-    mock-mode: ${TELEGRAM_MOCK_MODE:true} # 테스트/로컬 환경에서는 콘솔 로깅으로 Mock 동작
+    mock-mode: ${TELEGRAM_MOCK_MODE:false}
 
 # Quant Bot Virtual Instance / Docker Provisioning
 bot:

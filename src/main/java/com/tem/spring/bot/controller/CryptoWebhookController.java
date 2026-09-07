@@ -157,7 +157,7 @@ public class CryptoWebhookController {
                 "wallets", java.util.Map.of(
                         "polygon", "0xb0390a087488E304cA32996532Ab9f40028511fE",
                         "bsc", "0xb0390a087488E304cA32996532Ab9f40028511fE",
-                        "trc20", "TLZuz8MAZ34w8i4fejUJ7qaF8PkgF8W4UE",
+                        "trc20", "TVAfSsFKhMxj3jMvdSbK2Gf7ncbDgRu3Dk",
                         "solana", "8cEVKX4SzUUADEkkp9X62eWrgXRuU9zZiWBTgQfupqKA"
                 ),
                 "notice", "입금 전송 시 온체인 트랜잭션이 블록체인에서 승인되는 즉시(1~2분 내) 24시간 봇이 자동 활성화됩니다."

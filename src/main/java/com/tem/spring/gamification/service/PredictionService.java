@@ -199,6 +199,16 @@ public class PredictionService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public PredictionResponse getActivePrediction(Long userId, String symbol) {
+        String sym = symbol != null ? symbol.toUpperCase() : "BTCUSDT";
+        List<PredictionEntity> list = predictionRepository.findActivePredictionsByUserAndSymbol(userId, sym);
+        if (list.isEmpty()) {
+            return null;
+        }
+        return mapToResponse(list.get(0));
+    }
+
     private PredictionResponse mapToResponse(PredictionEntity p) {
         return PredictionResponse.builder()
                 .predictionId(p.getId())
