@@ -55,9 +55,12 @@ qwen:
   api:
     enabled: ${QWEN_API_ENABLED:true}
     base-url: ${QWEN_API_BASE_URL:https://dashscope-intl.aliyuncs.com/compatible-mode/v1}
-    api-key: ${QWEN_API_KEY:sk-ws-H.DDDYHED.oT11.MEUCIQDHo2P4fbmHPSU681vOxLO7mMbh5h_rwJM_cmzdY93KmwIgUT5PdszK-qXMBQ8rH18ii7qkWkAnwZNbR8Ms0N6adJk}
+    api-key: ${QWEN_API_KEY:sk-ws-H.DDDYHED.EMSr.MEUCIQCyRty7Pucy7YFc4aUd9feuxNzkxoc7RRSSb2pSU22guQIgA709mS8w-Wgkgs1VMa4F6ryzY6fFZhpyf8B4018g5yQ}
     model: ${QWEN_MODEL:qwen-max}
     temperature: 0.15
+
+dashscope:
+  api-key: ${DASHSCOPE_API_KEY:${qwen.api.api-key:sk-ws-H.DDDYHED.EMSr.MEUCIQCyRty7Pucy7YFc4aUd9feuxNzkxoc7RRSSb2pSU22guQIgA709mS8w-Wgkgs1VMa4F6ryzY6fFZhpyf8B4018g5yQ}}
 
 # Custom Trading System Settings
 trading:
@@ -71,7 +74,7 @@ trading:
 
 # Bright Data Web Intelligence & Realtime Scraping API
 brightdata:
-  api-key: ${BRIGHTDATA_API_KEY:4a62ad76-a8e4-46cb-9cb0-deaf9e6587a7}
+  api-key: ${BRIGHTDATA_API_KEY:7f33c131-1f82-4401-b500-e425778dc9b4}
   base-url: ${BRIGHTDATA_BASE_URL:https://api.brightdata.com}
   zone: ${BRIGHTDATA_ZONE:web_unlocker1}
   enabled: ${BRIGHTDATA_ENABLED:true}
@@ -102,7 +105,7 @@ blockchain:
 # Official Telegram Bot Configuration (1:1 Personal Deep Linking)
 telegram:
   bot:
-    token: ${TELEGRAM_BOT_TOKEN:8652016277:AAG8R4cgUh8z6Dth32QHZaYFwHsvY41tGz0}
+    token: ${TELEGRAM_BOT_TOKEN:8652016277:AAH3o3ZyTttewCMsp8Sh10sSQ5K6rqUpuWk}
     username: ${TELEGRAM_BOT_USERNAME:MyQuantOfficial_bot}
     webhook-url: ${TELEGRAM_WEBHOOK_URL:https://api.aether-trading.com/api/v1/telegram/webhook}
     mock-mode: ${TELEGRAM_MOCK_MODE:false}

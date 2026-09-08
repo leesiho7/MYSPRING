@@ -33,7 +33,7 @@ public class VisionChartAnalysisService {
     private final com.tem.spring.ai.guardrail.OutputSchemaHardValidator schemaValidator;
     private final com.tem.spring.ai.guardrail.DeterministicEnsembleGate ensembleGate;
 
-    @Value("${dashscope.api-key:}")
+    @Value("${dashscope.api-key:${qwen.api.api-key:}}")
     private String dashscopeApiKey;
 
     public VisionChartAnalysisResponse analyzeChartImage(VisionChartAnalysisRequest req) {

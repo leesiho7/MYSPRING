@@ -20,7 +20,7 @@ import java.util.List;
 @Service
 public class BrightDataNewsScraperService {
 
-    @Value("${brightdata.api-key:4a62ad76-a8e4-46cb-9cb0-deaf9e6587a7}")
+    @Value("${brightdata.api-key:7f33c131-1f82-4401-b500-e425778dc9b4}")
     private String apiKey;
 
     @Value("${brightdata.base-url:https://api.brightdata.com}")

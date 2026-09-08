@@ -33,10 +33,10 @@ public class TelegramOfficialBotService {
     private final BotInstanceRepository botInstanceRepository;
     private final UserRepository userRepository;
 
-    @Value("${telegram.bot.token:mock_bot_token}")
+    @Value("${telegram.bot.token:8652016277:AAH3o3ZyTttewCMsp8Sh10sSQ5K6rqUpuWk}")
     private String botToken;
 
-    @Value("${telegram.bot.username:AetherQuantOfficialBot}")
+    @Value("${telegram.bot.username:MyQuantOfficial_bot}")
     private String botUsername;
 
     @Value("${telegram.bot.mock-mode:true}")

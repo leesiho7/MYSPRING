@@ -11,6 +11,7 @@ import com.tem.spring.bot.repository.BotInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,24 +40,73 @@ public class BotInstanceService {
 
     /**
      * 서버 시작/재배포 시 DB에서 RUNNING 상태였던 봇 인스턴스 백그라운드 자동 복구 및 가동 재개
+     *
+     * 구독이 만료된 유저의 봇은 복구 대상에서 제외하고 EXPIRED로 전이시킨다.
+     * (자동 복구는 '새 사이클 시작'에 해당하므로 만료 고객에게는 허용하지 않는다)
      */
     @EventListener(ApplicationReadyEvent.class)
+    @Transactional
     public void recoverRunningBotInstances() {
         log.info("[BotInstanceService] 🔄 Recovering RUNNING 24H Bot Instances from MySQL Database...");
         try {
-            List<BotInstanceEntity> runningBots = botRepository.findAll().stream()
-                    .filter(b -> "RUNNING".equalsIgnoreCase(b.getStatus()))
-                    .toList();
+            List<BotInstanceEntity> runningBots = botRepository.findByStatus("RUNNING");
 
+            int recovered = 0;
             for (BotInstanceEntity bot : runningBots) {
+                if (expireIfSubscriptionInactive(bot)) {
+                    continue;
+                }
                 if (!sandboxRunner.isRunning(bot.getId())) {
                     sandboxRunner.startInstance(bot.getId(), bot.getBotName(), bot.getSymbol(), bot.getMode(), bot.getDeveloperPythonCode());
                     log.info("[BotInstanceService] ⚡ Auto-recovered 24H Bot Instance #{} [{}]", bot.getId(), bot.getBotName());
+                    recovered++;
                 }
             }
-            log.info("[BotInstanceService] ✅ Successfully recovered {} active bot instances.", runningBots.size());
+            log.info("[BotInstanceService] ✅ Successfully recovered {} of {} RUNNING bot instances.", recovered, runningBots.size());
         } catch (Exception e) {
             log.warn("[BotInstanceService] Failed to auto-recover bot instances: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 구독이 만료된 봇을 EXPIRED로 전이시킨다.
+     *
+     * 정책: 즉시 강제 종료하지 않고 <b>현재 실행 중인 사이클은 끝까지 완주</b>시킨 뒤 중지한다.
+     * 새 사이클(재가동/자동 복구/자동 수리)은 시작하지 않는다.
+     *
+     * @return 만료 처리된 경우 true (호출부는 이 경우 가동을 건너뛴다)
+     */
+    private boolean expireIfSubscriptionInactive(BotInstanceEntity bot) {
+        Long ownerId = bot.getUser().getId();
+        if (subscriptionService.hasActiveSubscription(ownerId)) {
+            return false;
+        }
+
+        sandboxRunner.stopInstanceAfterCurrentCycle(bot.getId());
+        bot.setStatus("EXPIRED");
+        bot.setStoppedAt(LocalDateTime.now());
+        botRepository.save(bot);
+        log.info("[BotInstanceService] ⌛ Bot #{} marked EXPIRED (user {} has no active subscription)", bot.getId(), ownerId);
+        return true;
+    }
+
+    /**
+     * 매시 5분에 구독 만료 고객의 가동 중인 봇을 정리한다.
+     * (BotSubscriptionService의 정시 만료 배치가 ACTIVE → EXPIRED 전이를 마친 뒤 실행)
+     */
+    @Scheduled(cron = "0 5 * * * *")
+    @Transactional
+    public void enforceSubscriptionOnRunningBots() {
+        List<BotInstanceEntity> runningBots = botRepository.findByStatus("RUNNING");
+
+        int expired = 0;
+        for (BotInstanceEntity bot : runningBots) {
+            if (expireIfSubscriptionInactive(bot)) {
+                expired++;
+            }
+        }
+        if (expired > 0) {
+            log.info("[BotInstanceService] ⌛ Subscription sweep: {} bot instance(s) transitioned to EXPIRED.", expired);
         }
     }
 
@@ -91,11 +141,14 @@ public class BotInstanceService {
                     req.getSymbol(), req.getTimeFrame(), req.getExchange(), beginnerParamsJson);
         }
 
+        // 🛡️ 구독이 없으면 인스턴스는 생성하되 가동은 하지 않는다 (start와 동일한 검증 기준 적용)
+        boolean subscribed = subscriptionService.hasActiveSubscription(user.getId());
+
         BotInstanceEntity bot = BotInstanceEntity.builder()
                 .user(user)
                 .botName(req.getBotName())
                 .mode(req.getMode() != null ? req.getMode().toUpperCase() : "BEGINNER")
-                .status("RUNNING")
+                .status(subscribed ? "RUNNING" : "STOPPED")
                 .exchange(req.getExchange() != null ? req.getExchange().toUpperCase() : "BINANCE")
                 .symbol(req.getSymbol() != null ? req.getSymbol().toUpperCase() : "BTCUSDT")
                 .timeFrame(req.getTimeFrame() != null ? req.getTimeFrame() : "5m")
@@ -107,12 +160,19 @@ public class BotInstanceService {
                 .winningTrades(0)
                 .cumulativePnlPct(0.0)
                 .currentPositionUsdt(0.0)
-                .startedAt(LocalDateTime.now())
-                .lastExecutedAt(LocalDateTime.now())
+                .startedAt(subscribed ? LocalDateTime.now() : null)
+                .lastExecutedAt(subscribed ? LocalDateTime.now() : null)
                 .createdAt(LocalDateTime.now())
                 .build();
 
         BotInstanceEntity saved = botRepository.save(bot);
+
+        if (!subscribed) {
+            log.info("[BotInstanceService] Created Bot Instance #{} [{}] in STOPPED state (no active subscription)", saved.getId(), saved.getBotName());
+            return mapToResponse(saved, true,
+                    "봇 인스턴스가 생성되었습니다. 가동하려면 24시간 호스팅 구독이 필요합니다. (월 $7.0 USDT)");
+        }
+
         sandboxRunner.startInstance(saved.getId(), saved.getBotName(), saved.getSymbol(), saved.getMode(), saved.getDeveloperPythonCode());
         log.info("[BotInstanceService] Created & Started Bot Instance #{} [{}]", saved.getId(), saved.getBotName());
 
@@ -141,6 +201,7 @@ public class BotInstanceService {
         bot.setStatus("RUNNING");
         bot.setStartedAt(LocalDateTime.now());
         bot.setLastExecutedAt(LocalDateTime.now());
+        bot.setStoppedAt(null); // 재가동 시 이전 만료/중지 시각 초기화
         bot.setExecutionHandle("proc-sandbox-" + bot.getId() + "-" + System.currentTimeMillis());
 
         // 백그라운드 24H 샌드박스 가동
@@ -211,14 +272,14 @@ public class BotInstanceService {
     /**
      * 4. 봇 실시간 상태 및 누적 수익률 조회
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public BotInstanceResponse getBotStatus(Long instanceId, Long userId) {
         BotInstanceEntity bot = botRepository.findByIdAndUserId(instanceId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("봇 인스턴스를 찾을 수 없습니다. ID: " + instanceId));
 
-        boolean isActuallyRunning = sandboxRunner.isRunning(bot.getId());
-        if ("RUNNING".equals(bot.getStatus()) && !isActuallyRunning) {
-            // JVM 재시작 등으로 스케줄러가 미가동 시 자동 재개
+        if ("RUNNING".equals(bot.getStatus()) && !expireIfSubscriptionInactive(bot)
+                && !sandboxRunner.isRunning(bot.getId())) {
+            // JVM 재시작 등으로 스케줄러가 미가동 시 자동 재개 (활성 구독자 한정)
             sandboxRunner.startInstance(bot.getId(), bot.getBotName(), bot.getSymbol(), bot.getMode(), bot.getDeveloperPythonCode());
         }
 
@@ -228,13 +289,17 @@ public class BotInstanceService {
     /**
      * 5. 유저의 전체 봇 인스턴스 목록 조회 (상태 격리 보장 및 백엔드 Auto-Repair)
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<BotInstanceResponse> getUserBots(Long userId) {
         List<BotInstanceEntity> bots = botRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        
+
         // 🛡️ 백엔드 인프라 방어: DB가 RUNNING인데 백그라운드 프로세스가 미가동 상태면 백엔드에서 자체 자동 재가동
+        //    단, 구독이 만료된 고객의 봇은 재가동 대신 EXPIRED로 전이 (현재 사이클은 완주 보장)
         for (BotInstanceEntity bot : bots) {
-            if ("RUNNING".equals(bot.getStatus()) && !sandboxRunner.isRunning(bot.getId())) {
+            if (!"RUNNING".equals(bot.getStatus()) || expireIfSubscriptionInactive(bot)) {
+                continue;
+            }
+            if (!sandboxRunner.isRunning(bot.getId())) {
                 log.info("[BotInstanceService] 🛡️ Auto-repairing RUNNING Bot #{} background process...", bot.getId());
                 sandboxRunner.startInstance(bot.getId(), bot.getBotName(), bot.getSymbol(), bot.getMode(), bot.getDeveloperPythonCode());
             }

@@ -51,7 +51,7 @@ public class QwenMaxApiService {
 
     public QwenMaxApiService(
             @Value("${qwen.api.base-url:https://dashscope-intl.aliyuncs.com/compatible-mode/v1}") String baseUrl,
-            @Value("${qwen.api.api-key:sk-ws-H.DDDYHED.oT11.MEUCIQDHo2P4fbmHPSU681vOxLO7mMbh5h_rwJM_cmzdY93KmwIgUT5PdszK-qXMBQ8rH18ii7qkWkAnwZNbR8Ms0N6adJk}") String apiKey,
+            @Value("${qwen.api.api-key:sk-ws-H.DDDYHED.EMSr.MEUCIQCyRty7Pucy7YFc4aUd9feuxNzkxoc7RRSSb2pSU22guQIgA709mS8w-Wgkgs1VMa4F6ryzY6fFZhpyf8B4018g5yQ}") String apiKey,
             @Value("${qwen.api.model:qwen-max}") String model,
             @Value("${qwen.api.enabled:true}") boolean enabled,
             @Value("${qwen.api.temperature:0.15}") double temperature

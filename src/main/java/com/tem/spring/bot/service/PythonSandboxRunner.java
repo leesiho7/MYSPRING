@@ -69,6 +69,21 @@ public class PythonSandboxRunner {
     }
 
     /**
+     * 2-1. 구독 만료 등 정책 사유에 의한 유예 중지 (Graceful Stop)
+     *
+     * 사용자가 직접 누른 STOP({@link #stopInstance})과 달리 실행 중인 사이클을 인터럽트하지 않는다.
+     * 진행 중이던 12초 주기 사이클은 끝까지 완주시키고, 다음 사이클부터 스케줄링을 중단한다.
+     */
+    public void stopInstanceAfterCurrentCycle(Long instanceId) {
+        ScheduledFuture<?> task = runningTasks.remove(instanceId);
+        if (task != null) {
+            task.cancel(false); // mayInterruptIfRunning=false → 실행 중인 사이클 보존
+            appendLog(instanceId, "WARN", "[GRACE-STOP] 호스팅 구독이 만료되어 현재 사이클 완료 후 인스턴스가 중지됩니다.");
+            log.info("[PythonSandboxRunner] ⏳ Graceful stop for Bot #{} (current cycle allowed to finish)", instanceId);
+        }
+    }
+
+    /**
      * 3. 인스턴스가 현재 살아있는지 확인
      */
     public boolean isRunning(Long instanceId) {
